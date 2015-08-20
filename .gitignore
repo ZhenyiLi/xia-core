@@ -9,8 +9,11 @@
 core
 *~
 *.sw?
-!/visualizations/local_click/Visualizer.swf
+!/tools/visualizations/local_click/Visualizer.swf
+!/tools/visualizations/distributed_click/Visualizer.swf
 tags
+.tags*
+*.sublime-workspace
 cscope.out
 *.o.cmd
 *.ko.cmd
@@ -26,6 +29,9 @@ asm
 xia.mk
 .DS_Store
 *.dSYM
+
+# directories
+key
 
 # ignore session layer files on this branch only
 api/session

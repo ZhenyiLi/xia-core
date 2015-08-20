@@ -117,4 +117,5 @@ Idle -> [1]router2;
 //Idle -> [1]router4;
 
 ControlSocket(tcp, 7777);
+log::XLog(VERBOSE 0, LEVEL 6);
 

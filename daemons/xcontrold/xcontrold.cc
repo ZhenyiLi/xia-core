@@ -22,6 +22,12 @@
 #define APPNAME "xcontrold"
 #define EXPIRE_TIME 60
 
+// Main loop iterates every 1000 usec = 1 ms = 0.001 sec
+#define MAIN_LOOP_USEC 1000
+#define RECV_ITERS 2
+#define HELLO_ITERS 100
+#define LSA_ITERS 400
+
 char *hostname = NULL;
 char *ident = NULL;
 
@@ -30,28 +36,6 @@ RouteState route_state;
 XIARouter xr;
 map<string,time_t> timeStamp;
 
-void timeout_handler(int signum)
-{
-	UNUSED(signum);
-
-	if (route_state.hello_seq < route_state.hello_lsa_ratio) {
-		// send Hello
-		route_state.send_hello = true;
-		//sendHello();
-		route_state.hello_seq++;
-	} else if (route_state.hello_seq >= route_state.hello_lsa_ratio) {
-		// it's time to send LSA
-		route_state.send_lsa = true;
-		//sendInterdomainLSA();
-		// reset hello req
-		route_state.hello_seq = 0;
-	} else {
-		syslog(LOG_ERR, "hello_seq=%d hello_lsa_ratio=%d", route_state.hello_seq, route_state.hello_lsa_ratio);
-	}
-	// reset the timer
-	signal(SIGALRM, timeout_handler);
-	ualarm((int)ceil(HELLO_INTERVAL*1000000),0);
-}
 
 // send Hello message (1-hop broadcast) with my AD and my HID to the directly connected neighbors
 int sendHello()
@@ -64,6 +48,7 @@ int sendHello()
 	msg2.append(SID_XCONTROL);
 	int rc2 = msg2.send(route_state.sock, &route_state.ddag);
 
+printf("sendhello %d %d\n", rc1, rc2);
 	return (rc1 < rc2)? rc1 : rc2;
 }
 
@@ -112,9 +97,11 @@ int sendInterdomainLSA()
 			syslog(LOG_ERR, "error sending inter-AD LSA to %s", it->second.AD.c_str());
 		}
 		rc = (temprc < rc)? temprc : rc;
+printf("sendinterdomainlsa %d\n", temprc);
   	}
 
 	route_state.lsa_seq = (route_state.lsa_seq + 1) % MAX_SEQNUM;
+
 	return rc;
 }
 
@@ -707,6 +694,7 @@ void initRouteState()
 		exit(-1);
 	}
 
+printf("xcontrold calling getaddrinfo\n");
 	// make the src DAG (the one the routing process listens on)
 	struct addrinfo *ai;
 	if (Xgetaddrinfo(NULL, SID_XROUTE, NULL, &ai) != 0) {
@@ -731,10 +719,6 @@ void initRouteState()
 	} else {
 		route_state.dual_router = 0;
 	}
-
-	// set timer for HELLO/LSA
-	signal(SIGALRM, timeout_handler);
-	ualarm((int)ceil(HELLO_INTERVAL*1000000),0); 	
 }
 
 void help(const char *name)
@@ -855,17 +839,9 @@ int main(int argc, char *argv[])
 
 	int sock;
 	time_t last_purge = time(NULL);
+	int iteration = 0;
 	while (1) {
-		if (route_state.send_hello == true) {
-			// it is time to send hello.
-			route_state.send_hello = false;
-			sendHello();
-		}
-		if (route_state.send_lsa == true) {
-			// it is time to send lsa.
-			route_state.send_lsa = false;
-			sendInterdomainLSA();
-		}
+		iteration++;
 		FD_ZERO(&socks);
 		FD_SET(route_state.sock, &socks);
 		FD_SET(tempSock, &socks);
@@ -873,7 +849,7 @@ int main(int argc, char *argv[])
 		timeoutval.tv_usec = 2000; // every 0.002 sec, check if any received packets
 
 		int32_t highSock = max(route_state.sock, tempSock);
-		selectRetVal = select(highSock+1, &socks, NULL, NULL, &timeoutval);
+		selectRetVal = Xselect(highSock+1, &socks, NULL, NULL, &timeoutval);
 		if (selectRetVal > 0) {
 			// receiving a Hello or LSA packet
 			memset(&recv_message[0], 0, sizeof(recv_message));
@@ -892,8 +868,30 @@ int main(int argc, char *argv[])
 
 			string msg = recv_message;
             processMsg(msg);
+		
+		} else if (selectRetVal < 0) {
+			syslog(LOG_WARNING, "ERROR: Xselect returned %d", selectRetVal);
 		}
 
+		// Send HELLO every 100 ms
+		if((iteration % HELLO_ITERS) == 0) {
+			// Except when we are sending an LSA
+			if((iteration % LSA_ITERS) != 0) {
+				route_state.hello_seq++;
+				if(sendHello()) {
+					syslog(LOG_WARNING, "ERROR: Failed sending hello");
+				}
+			}
+		}
+		// Send an LSA every 400 ms
+		if((iteration % LSA_ITERS) == 0) {
+			route_state.hello_seq = 0;
+			if(sendInterdomainLSA()) {
+				syslog(LOG_WARNING, "ERROR: Failed sending LSA");
+			}
+		}
+
+		// FIXME: is this needed on the controller???
 		time_t now = time(NULL);
 		if (now - last_purge >= EXPIRE_TIME)
 		{

@@ -72,29 +72,6 @@ int interfaceNumber(std::string xidType, std::string xid)
 	return -1;
 }
 
-void timeout_handler(int signum)
-{
-	UNUSED(signum);
-
-	XR_LOG("timeout(%d)", route_state.hello_seq);
-	if (route_state.hello_seq < route_state.hello_lsa_ratio) {
-		// send Hello
-		route_state.send_hello = true;
-		//sendHello();
-		route_state.hello_seq++;
-	} else if (route_state.hello_seq >= route_state.hello_lsa_ratio) {
-		// it's time to send LSA
-		route_state.send_lsa = true;
-		//sendLSA();
-		// reset hello req
-		route_state.hello_seq = 0;
-	} else {
-		syslog(LOG_ERR, "hello_seq=%d hello_lsa_ratio=%d", route_state.hello_seq, route_state.hello_lsa_ratio);
-	}
-	// reset the timer
-	signal(SIGALRM, timeout_handler);
-	ualarm((int)ceil(HELLO_INTERVAL*1000000),0);
-}
 
 // send Hello message (1-hop broadcast) with my AD and my HID to the directly connected neighbors
 /* Message format (delimiter=^)
@@ -392,11 +369,7 @@ void initRouteState()
 		syslog(LOG_DEBUG, "configured as a dual-stack router");
 	} else {
 		route_state.dual_router = 0;
-	}
-
-	// set timer for HELLO/LSA
-	signal(SIGALRM, timeout_handler);
-	ualarm((int)ceil(HELLO_INTERVAL*1000000),0); 	
+	}	
 }
 
 void help(const char *name)
@@ -491,22 +464,16 @@ int main(int argc, char *argv[])
    	}
 
 	time_t last_purge = time(NULL);
+	int iteration = 0;
 	while (1) {
-		if (route_state.send_hello == true) {
-			route_state.send_hello = false;
-			sendHello();
-		}
-		if (route_state.send_lsa == true) {
-			route_state.send_lsa = false;
-			sendLSA();
-		}
-
+		iteration++;
 		FD_ZERO(&socks);
 		FD_SET(route_state.sock, &socks);
 		timeoutval.tv_sec = 0;
-		timeoutval.tv_usec = 2000; // every 0.002 sec, check if any received packets
+		timeoutval.tv_usec = MAIN_LOOP_USEC *2; // Main loop runs every 1000 usec
 
-		selectRetVal = select(route_state.sock+1, &socks, NULL, NULL, &timeoutval);
+		// every 0.001 sec, check if any received packets
+		selectRetVal = Xselect(route_state.sock+1, &socks, NULL, NULL, &timeoutval);
 		if (selectRetVal > 0) {
 			// receiving a Hello or LSA packet
 			memset(&recv_message[0], 0, sizeof(recv_message));
@@ -518,21 +485,44 @@ int main(int argc, char *argv[])
 
             std::string msg = recv_message;
             processMsg(msg);
+
+		} else if (selectRetVal < 0) {
+			syslog(LOG_WARNING, "ERROR: Xselect returned %d", selectRetVal);
+		}
+
+		// Send HELLO every 100 ms
+		if((iteration % HELLO_ITERS) == 0) {
+			// Except when we are sending an LSA
+			if((iteration % LSA_ITERS) != 0) {
+				route_state.hello_seq++;
+				if(sendHello()) {
+					syslog(LOG_WARNING, "ERROR: Failed sending hello");
+				}
+			}
+		}
+		// Send an LSA every 400 ms
+		if((iteration % LSA_ITERS) == 0) {
+			route_state.hello_seq = 0;
+			if(sendLSA()) {
+				syslog(LOG_WARNING, "ERROR: Failed sending LSA");
+			}
 		}
 
 		time_t now = time(NULL);
 		if (now - last_purge >= EXPIRE_TIME)
 		{
 			last_purge = now;
-			fprintf(stderr, "checking entry\n");
 			map<string, time_t>::iterator iter;
 
-			for (iter = timeStamp.begin(); iter != timeStamp.end(); iter++)	
+			iter = timeStamp.begin();
+			while(iter != timeStamp.end())
 			{
 				if (now - iter->second >= EXPIRE_TIME){
 					xr.delRoute(iter->first);
-					timeStamp.erase(iter);
 					syslog(LOG_INFO, "purging host route for : %s", iter->first.c_str());
+					timeStamp.erase(iter++);
+				} else {
+					++iter;
 				}
 			}
 		}
