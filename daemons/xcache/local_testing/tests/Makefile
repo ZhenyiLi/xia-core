@@ -1,6 +1,6 @@
 include ../../../../xia.mk
 CFLAGS+=-g -I../../../click/include/click
-LDFLAGS+=$(LIBS) -lpthread
+LDFLAGS+=$(LIBS) -lpthread -lprotobuf
 all: server client
 
 server:
