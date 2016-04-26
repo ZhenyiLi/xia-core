@@ -55,7 +55,8 @@ int XcacheHandleDestroy(XcacheHandle *h);
 
 
 int XputFile(XcacheHandle *h, const char *filename, size_t chunkSize, sockaddr_x **info);  //DONE
-int XputChunk(XcacheHandle *h, const void *data, size_t length, sockaddr_x *info);  //DONE
+//int XputChunk(XcacheHandle *h, const void *data, size_t length, sockaddr_x *info);  //DONE
+int XputChunk(XcacheHandle *h, const char *data, size_t length, sockaddr_x *addr);  //DONE
 int XputBuffer(XcacheHandle *h, const void *data, size_t length, size_t chunkSize, sockaddr_x **info);  //DONE
 int XputMetaChunk(XcacheHandle *h, sockaddr_x *metachunk, sockaddr_x *addrs, socklen_t addrlen, int count); //DONE
 

@@ -86,8 +86,6 @@ int getFile(int sock)
 	unsigned int bytes = 0;
 
 	// chunk fetching begins
-	int bytes = 0;
-	char cmd[XIA_MAX_BUF] = "";
 	char data[1024 * 1024];
 	for (unsigned int i = 0; i < CIDs.size(); i++) {
 		clock_t start_time = clock();
@@ -109,7 +107,7 @@ die(-1, "fail to recv from stageManager!");
 			url_to_dag(&addr, cmd, len);
 		}
 		else{
-			url_to_dag(&addr, CIDs[i].c_str(), CID[i].size());
+			url_to_dag(&addr,(char*)CIDs[i].c_str(), CIDs[i].size());
 		}
 		if((len = XfetchChunk(&h, data, 1024 * 1024, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
 die(-1, "XcacheGetChunk Failed\n");

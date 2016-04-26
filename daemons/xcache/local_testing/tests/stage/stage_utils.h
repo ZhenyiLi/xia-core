@@ -8,6 +8,7 @@
 #include <string>
 #include <string.h>
 #include <map>
+#include <set>
 #include <vector>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include "Xsocket.h"
+#include "dagaddr.h"
 #include "dagaddr.hpp"
 #include <assert.h>
 #include <sys/socket.h>
@@ -27,7 +29,7 @@
 #include <utility>
 
 #include "Xkeys.h"
-#include "../../api/xcache.h"
+#include "../../../api/xcache.h"
 
 #define MAX_XID_SIZE 100
 #define RECV_BUF_SIZE 1024

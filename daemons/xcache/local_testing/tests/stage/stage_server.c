@@ -132,18 +132,19 @@ void *stageData(void *)
 
 				char buf[1024 * 1024];
 				int ret;
-say("Fetching chunks from server. The number of chunks is %d, the first chunk is %s\n", n, I.second[0].c_str());
+say("Fetching chunks from server. The number of chunks is none, the first chunk is %s\n", I.second[0].c_str());
 				for(auto CID : I.second){
 					sockaddr_x addr;
-					url_to_dag(&addr, CID.c_str(), CID.size());
+					url_to_dag(&addr, (char*)CID.c_str(), CID.size());
 					if ((ret = XfetchChunk(&xcache, buf, 1024 * 1024, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
 						say("unable to request chunks\n");
                         //add unlock function   --Lwy   1.16
                         pthread_mutex_unlock(&bufLock);
 						pthread_exit(NULL);
 					}
+
 					pthread_mutex_lock(&profileLock);
-					if(XputChunt(&xcache, buf, ret, &SIDToProfile[SID][CID].newDag) < 0){
+					if(XputChunk(&xcache, (const char* )buf, ret, &SIDToProfile[SID][CID].newDag) < 0){
 						say("unable to put chunks\n");
 						pthread_mutex_unlock(&bufLock);
 						pthread_mutex_unlock(&profileLock);
@@ -152,7 +153,7 @@ say("Fetching chunks from server. The number of chunks is %d, the first chunk is
 					if (SIDToProfile[SID][CID].fetchFinishTimestamp == 0) {
 						SIDToProfile[SID][CID].fetchFinishTimestamp = now_msec();
 					}
-					SIDToProfile[SID][I.second[i]].fetchState = READY;
+					SIDToProfile[SID][CID].fetchState = READY;
 					pthread_mutex_unlock(&profileLock);
 
 				}
@@ -192,40 +193,11 @@ say("Successfully receive stage command from stage manager.\n");
 	pthread_exit(NULL);
 }
 
-void *profileMgt(void *)
-{
-	while (1) {
-        //add lock and unlock function  --Lwy   1.16
-        pthread_mutex_lock(&timeLock);
-		for (map<string, long>::iterator I = SIDToTime.begin(); I != SIDToTime.end(); ++I) {
-			if (now_msec() - (*I).second >= PURGE_DELAY_SEC*1000) {
-				string SID = (*I).first;
-				cerr<<"Deleting "<<SID<<endl;
-				//pthread_mutex_lock(&timeLock);
-				SIDToTime.erase(SID);
-				//pthread_mutex_unlock(&timeLock);
-				pthread_mutex_lock(&profileLock);
-				SIDToProfile.erase(SID);
-				pthread_mutex_unlock(&profileLock);
-				pthread_mutex_lock(&bufLock);
-				SIDToBuf.erase(SID);
-				pthread_mutex_unlock(&bufLock);
-			}
-		}
-        pthread_mutex_unlock(&timeLock);
-		sleep(MGT_DELAY_SEC);
-	}
-
-	pthread_exit(NULL);
-}
-
 int main()
 {
-	pthread_t thread_stage, thread_mgt;
+	pthread_t thread_stage;
 	pthread_create(&thread_stage, NULL, stageData, NULL); // dequeue, stage and update profile
-	//pthread_create(&thread_mgt, NULL, profileMgt, NULL);
 
-	//stageServerSock is used to communicate with stage manager.
 	stageServerSock = registerStreamReceiver(getStageServiceName(), myAD, myHID, my4ID);
 say("The current stageServerSock is %d\n", stageServerSock);
 	blockListener((void *)&stageServerSock, stageCmd);

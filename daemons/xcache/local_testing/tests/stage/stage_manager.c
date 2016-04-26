@@ -7,7 +7,7 @@ struct chunkProfile {
 	int state;
 	string dag;
 
-	chunkProfile(string _dag, int _state):state(_state),dag(_dag){}
+	chunkProfile(string _dag = "", int _state = BLANK):state(_state),dag(_dag){}
 };
 
 map<int, vector<string> > SIDToDAGs;
@@ -37,10 +37,10 @@ say("Receiving partial chunk list\n");
 		dag = strtok_r(cmd_arr, " ",&saveptr);
 
 		SIDToDAGs[sock].push_back(dag);
-		SIDToProfile[sock][dag].emplace(dag, BLANK);
+		SIDToProfile[sock][dag] = chunkProfile(string(dag), BLANK);
 		while ((dag = strtok_r(NULL, " ",&saveptr)) != NULL) {
 			SIDToDAGs[sock].push_back(dag);
-			SIDToProfile[sock][dag].emplace(dag, BLANK);
+			SIDToProfile[sock][dag] = chunkProfile(dag, BLANK);
 say("DAG: %s\n",dag);
 		}
 say("++++++++++++++++++++++++++++++++The remoteSID is %d\n", sock);
@@ -50,7 +50,7 @@ say("++++++++++++++++++++++++++++++++The remoteSID is %d\n", sock);
 	}
 
 	else if (strncmp(cmd, "reg done", 8) == 0) {
-		pthread_mutex_lock(&stageMutex)
+		pthread_mutex_lock(&stageMutex);
 		stageIndex[sock] = 0;
 		pthread_mutex_unlock(&stageMutex);
 say("Receive the reg done command\n");
@@ -134,7 +134,7 @@ say("Receive a chunk request\n");
 	}
 	close(sock);
 say("Socket closed\n");
-	pthread_mutex_lock(&profileLock)
+	pthread_mutex_lock(&profileLock);
 	SIDToProfile.erase(sock);
 	pthread_mutex_unlock(&profileLock);
 	pthread_mutex_lock(&dagVecLock);
@@ -164,7 +164,7 @@ cerr << "Current " << getAD() << endl;
 say("++++++++++++++++++++++++++++++++++++The current netStageSock is %d\n", netStageSock);
 	if (netStageSock == -1) {
 say("netStageOn is false!\n");
-	netStageOn
+	netStageOn = false;
 		pthread_exit(NULL);
 	}
 
@@ -196,9 +196,7 @@ say("Handling the sock: %d\n",sock);
 			//		needStage.insert(dags[i]);
 			//}	
 			pthread_mutex_lock(&stageMutex);
-			boolean stageFlag = false;
 			if(stageIndex[sock] != -1){
-				stageFlag = true;
 				int tmp = stageIndex[sock];
 				if(tmp > 1 && SIDToProfile[sock][dags[tmp - 2]].state == BLANK)
 					needStage.insert(dags[tmp - 2]);
@@ -206,9 +204,9 @@ say("Handling the sock: %d\n",sock);
 					needStage.insert(dags[tmp - 1]);
 				if(SIDToProfile[sock][dags[tmp]].state == BLANK)
 					needStage.insert(dags[tmp]);
-				if(tmp < SIDToDAGs[sock].size() - 1 && SIDToProfile[sock][dags[tmp + 1]].state == BLANK)
+				if(tmp < static_cast<int>(SIDToDAGs[sock].size()) - 1 && SIDToProfile[sock][dags[tmp + 1]].state == BLANK)
 					needStage.insert(dags[tmp + 1]);
-				if(tmp < SIDToDAGs[sock].size() - 2 && SIDToProfile[sock][dags[tmp + 2]].state == BLANK)
+				if(tmp < static_cast<int>(SIDToDAGs[sock].size()) - 2 && SIDToProfile[sock][dags[tmp + 2]].state == BLANK)
 					needStage.insert(dags[tmp + 2]);
 				stageIndex[sock] = -1;
 			}
@@ -232,8 +230,8 @@ say("needStage: %s\n",dag.c_str());
 			}
 
 			sendStreamCmd(netStageSock, cmd);
-			for(int i = 0; i < needStage.size(); ++i){
-				sayHello(netStageSock);
+			for(int i = 0; i < static_cast<int>(needStage.size()); ++i){
+				sayHello(netStageSock, "say something!");
 				if(Xrecv(netStageSock, reply, sizeof(reply), 0) < 0){
 					Xclose(netStageSock);
 					die(-1, "Unable to communicate with the server\n");
@@ -256,8 +254,7 @@ int main()
 	lastSSID = getSSID();
 	currSSID = lastSSID;
 	int stageSock = registerUnixStreamReceiver(UNIXMANAGERSOCK);
-	pthread_t thread_stageData,thread_fetchData;
-	pthread_create(&thread_fetchData, NULL, fetchData, NULL);
+	pthread_t thread_stageData;
 
     pthread_create(&thread_stageData, NULL, stageData, NULL);
 	UnixBlockListener((void*)&stageSock,clientCmd);

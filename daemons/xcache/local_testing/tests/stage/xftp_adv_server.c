@@ -58,7 +58,7 @@ void *recvCmd (void *socketid)
 					sprintf(reply, "cont");
 					char url[256];
 					for (i = offset; i < offset + num; i++) {
-						dag_to_url(url, 256, &addrs[i]);
+						dag_to_url(url, 256, &info[i]);
 						strcat(reply, " ");
 						strcat(reply, url);
 					}

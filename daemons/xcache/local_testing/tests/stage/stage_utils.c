@@ -94,7 +94,7 @@ long string2long(string str)
 	//stringstream buffer(str);
 	long var;
 	//buffer >> var;
-	sscanf(str.c_str(),"%lld",&var);
+	sscanf(str.c_str(),"%ld",&var);
 	return var;
 }
 
@@ -677,7 +677,6 @@ say("In updateManifest()\n");
 	int offset = 0;
 	int count = CIDs.size();
 	int num;
-	int num_of_receive_;
 	while (offset < count) {
 		num = MAX_CID_NUM;
 		if (count - offset < MAX_CID_NUM) {
