@@ -45,7 +45,7 @@ say("DAG: %s\n",dag);
 		}
 say("++++++++++++++++++++++++++++++++The remoteSID is %d\n", sock);
 		pthread_mutex_unlock(&profileLock);
-        pthread_mutex_unlock(&dagVecLock);
+        	pthread_mutex_unlock(&dagVecLock);
 		return;
 	}
 
@@ -77,11 +77,14 @@ say("In delegationHandler.\nThe command is %s\n",cmd);
 		stageIndex[sock] = dis;
 		pthread_mutex_unlock(&stageMutex);
 		
-
+		while(true){
 		pthread_mutex_lock(&profileLock);
-		if (SIDToProfile[sock][cmd].state == BLANK) {
-			SIDToProfile[sock][cmd].state = IGNORE;
+		if (SIDToProfile[sock][cmd].state == READY) {
+			//SIDToProfile[sock][cmd].state = IGNORE;
+			break;
 say("DAG: %s change into IGNORE!\n",cmd);
+		}
+		pthread_mutex_unlock(&profileLock);
 		}
 		tmp = SIDToProfile[sock][cmd].dag;
 		//SIDToProfile[sock].erase(cmd);
@@ -105,7 +108,7 @@ void *clientCmd(void *socketid)
 	stageIndex[sock] = -1;
 	pthread_mutex_unlock(&stageMutex);
 	while (1) {
-		cmd[0] = 0;
+		memset(cmd, 0, sizeof(cmd));
 		if ((n = recv(sock, cmd, sizeof(cmd), 0)) < 0) {
 			warn("socket error while waiting for data, closing connection\n");
 			break;
@@ -185,6 +188,7 @@ say("Thread id: %d Network changed, create another thread to continue!\n");
 
 
 		set<string> needStage;
+
 		pthread_mutex_lock(&dagVecLock);
 		for(auto pair : SIDToDAGs){
 			int sock = pair.first;
@@ -212,6 +216,7 @@ say("Handling the sock: %d\n",sock);
 			}
 			else{
 				pthread_mutex_unlock(&stageMutex);
+				pthread_mutex_unlock(&profileLock);
 				continue;
 			}
 			pthread_mutex_unlock(&stageMutex);
@@ -238,14 +243,15 @@ say("needStage: %s\n",dag.c_str());
 				}
 				char oldDag[256];
 				char newDag[256];
-				sscanf("ready %s %*ld %*ld newDag: %s",oldDag, newDag);
+				sscanf(reply, "%*s %s %s",oldDag, newDag);
+say("cmd: %s, old:%s  new:%s\n",reply,oldDag,newDag);
 				pthread_mutex_lock(&profileLock);
 				SIDToProfile[sock][oldDag].dag = newDag;
 				SIDToProfile[sock][oldDag].state = READY;
 				pthread_mutex_unlock(&profileLock);
 			}
 		}
-		pthread_mutex_lock(&dagVecLock);
+		pthread_mutex_unlock(&dagVecLock);
 	}
 	pthread_exit(NULL);
 }

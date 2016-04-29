@@ -94,13 +94,14 @@ say("Fetching chunk %u / %lu\n", i, CIDs.size() - 1);
 		int len;
 		sockaddr_x addr;
 		if(stage){
-			cmd[0] = 0;
+			memset(cmd, 0, sizeof(cmd));
 			sprintf(cmd, "fetch");
 			sprintf(cmd, "%s %s", cmd, CIDs[i].c_str());
+say("CMD is :%s\n",cmd);
 			if(send(stageManagerSock, cmd, strlen(cmd), 0) < 0){
 die(-1, "send cmd fail! cmd is %s", cmd);
 			}
-
+say("After send Fetch!\n");
 			if((len = recv(stageManagerSock, cmd, XIA_MAX_BUF, 0)) < 0){
 die(-1, "fail to recv from stageManager!");
 			}	
@@ -154,7 +155,7 @@ int main(int argc, char **argv)
 			stageManagerSock = registerUnixStageManager(UNIXMANAGERSOCK);
 			//stageManagerSock = registerStageManager(getStageManagerName());
 say("The current stageManagerSock is %d\n", stageManagerSock);
-			if (stageManagerSock == -1) {
+			if (stageManagerSock < 0) {
 				say("No local staging service running\n");
 				stage = false;
 			}
