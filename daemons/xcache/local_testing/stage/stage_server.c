@@ -16,12 +16,13 @@ struct chunkProfile {
 	int fetchState;
 	long fetchStartTimestamp;
 	long fetchFinishTimestamp;
+	sockaddr_x oldDag;
 	sockaddr_x newDag;
 };
 
 // Used by different service to communicate with each other.
 map<string, map<string, chunkProfile> > SIDToProfile;	// stage state
-map<string, vector<string> > SIDToBuf; // chunk buffer to stage
+map<string, vector<sockaddr_x> > SIDToBuf; // chunk buffer to stage
 //map<string, long> SIDToTime; // timestamp last seen
 
 // TODO: non-blocking fasion -- stage manager can send another stage request before get a ready response
@@ -40,9 +41,12 @@ void stageControl(int sock, char *cmd)
 
 	vector<string> CIDs = strVector(cmd);
 
+	for(auto CID: CIDs)
+		cerr << "test !!!!!!!" << CID << endl;
 	pthread_mutex_lock(&profileLock);
 	for (auto CID : CIDs) {
 		SIDToProfile[remoteSID][CID].fetchState = BLANK;
+		url_to_dag(&SIDToProfile[remoteSID][CID].oldDag, (char*)CID.c_str(), CID.size());		
 		SIDToProfile[remoteSID][CID].fetchStartTimestamp = 0;
 		SIDToProfile[remoteSID][CID].fetchFinishTimestamp = 0;
 	}
@@ -50,27 +54,24 @@ void stageControl(int sock, char *cmd)
 
 	// put the CIDs into the buffer to be staged
 	pthread_mutex_lock(&bufLock);
-	if (SIDToBuf.count(remoteSID)) {
-		for (unsigned int i = 0; i < CIDs.size(); i++) {
-			SIDToBuf[remoteSID].push_back(CIDs[i]);
-		}
-	}
-	else {
-		SIDToBuf[remoteSID] = CIDs;
-	}
+	for (unsigned int i = 0; i < CIDs.size(); i++)
+		SIDToBuf[remoteSID].push_back(SIDToProfile[remoteSID][CIDs[i]].oldDag);
 	pthread_mutex_unlock(&bufLock);
 
 	// send the chunk ready msg one by one
 	char url[256];
-	for (auto CID : CIDs) {
+	char oldUrl[256];
+	for (int i = 0; i < CIDs.size();++i) {
+		dag_to_url(oldUrl, 256, &SIDToProfile[remoteSID][CIDs[i]].oldDag);
 		while (1) {
-say("In stage control, getting chunk: %s\n", CID.c_str());
+say("In stage control, getting chunk: %s\n", oldUrl);
 
-            //add the lock and unlock action    --Lwy   1.16
-			if (SIDToProfile[remoteSID][CID].fetchState == READY) {
-				char reply[XIA_MAX_BUF];
-				dag_to_url(url, 256, &SIDToProfile[remoteSID][CID].newDag);
-				sprintf(reply, "ready %s %ld %ld newDag: %s", CID.c_str(), SIDToProfile[remoteSID][CID].fetchStartTimestamp, SIDToProfile[remoteSID][CID].fetchFinishTimestamp, url);
+            //add the lock and unlock action    --Lwy   1.16					
+			if (SIDToProfile[remoteSID][oldUrl].fetchState == READY) {
+				char reply[XIA_MAX_BUF] = {0};
+				dag_to_url(url, 256, &SIDToProfile[remoteSID][oldUrl].newDag);
+								
+				sprintf(reply, "ready %s %s", oldUrl, url);
 				hearHello(sock);
 
 				///////////////////// 
@@ -82,7 +83,8 @@ say("In stage control, getting chunk: %s\n", CID.c_str());
 
 				// Send chunk ready message to state manager.
 				sendStreamCmd(sock, reply);
-				say("xsend return ----- xsend return ---- xsend return ----  %s", CID.c_str());
+				say("xsend return ----- xsend return ---- xsend return ----  %s", CIDs[i].c_str());
+				//pthread_mutex_unlock(&profileLock);				
 				break;
 			}
 			// Determine the intervals to check the state of current chunk.
@@ -125,17 +127,20 @@ void *stageData(void *)
 				string SID = I.first;
 
                 // For each Content.
-                pthread_mutex_lock(&profileLock);
-				for (auto CID : I.second)
-					SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
-				pthread_mutex_unlock(&profileLock);
+                		//pthread_mutex_lock(&profileLock);
+				//for (auto CID : I.second)
+				//	SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
+				//pthread_mutex_unlock(&profileLock);
 
 				char buf[1024 * 1024];
 				int ret;
-say("Fetching chunks from server. The number of chunks is none, the first chunk is %s\n", I.second[0].c_str());
-				for(auto CID : I.second){
-					sockaddr_x addr;
-					url_to_dag(&addr, (char*)CID.c_str(), CID.size());
+say("Fetching chunks from server. The number of chunks is none, the first chunk is noe\n");
+				for(auto addr : I.second){
+					char CID[256];
+					
+					//sockaddr_x addr;
+					//url_to_dag(&addr, (char*)CID.c_str(), CID.size());
+					dag_to_url(CID, 256, &addr);					
 					if ((ret = XfetchChunk(&xcache, buf, 1024 * 1024, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
 						say("unable to request chunks\n");
                         //add unlock function   --Lwy   1.16
@@ -157,7 +162,7 @@ say("Fetching chunks from server. The number of chunks is none, the first chunk 
 					pthread_mutex_unlock(&profileLock);
 
 				}
-				I.second.clear(); // clear the buf
+				//I.second.clear(); // clear the buf
 				// TODO: timeout the chunks by free(cs[i].cid); cs[j].cid = NULL; cs[j].cidLen = 0;
 			}
 		}
