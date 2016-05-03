@@ -143,7 +143,7 @@ void die(int ecode, const char *fmt, ...)
 void process(int sock)
 {
 	char buf[XIA_MAXBUF + 1];
-	int n;
+	int n = 0;
 	pid_t pid = getpid();
 
 	fd_set fds;
@@ -154,10 +154,10 @@ void process(int sock)
 	struct timeval tv;
 	tv.tv_sec = WAIT_FOR_DATA;
 	tv.tv_usec = 0;
-#endif
+
    	while (1) {
 		memset(buf, 0, sizeof(buf));
-#ifdef USE_SELECT
+
 		tv.tv_sec = WAIT_FOR_DATA;
 		tv.tv_usec = 0;
 		 if ((n = Xselect(sock + 1, &fds, NULL, NULL, &tv)) < 0) {
@@ -172,25 +172,29 @@ void process(int sock)
 			 // this shouldn't happen!
 			 die(-4, "something is really wrong, exiting\n");
 		 }
+	}
 #endif
-
-		if ((n = Xrecv(sock, buf, sizeof(buf), 0)) < 0) {
-			warn("Recv error on socket %d, closing connection\n", pid);
-			break;
-		} else if (n == 0) {
-			warn("%d client closed the connection\n", pid);
-			break;
-		}
-
-		say("%5d received %d bytes\n", pid, n);
-
-		if ((n = Xsend(sock, buf, n, 0)) < 0) {
+	// if ((n = Xrecv(sock, buf, sizeof(buf), 0)) < 0) {
+	// 	warn("Recv error on socket %d, closing connection\n", pid);
+	// 	break;
+	// } else if (n == 0) {
+	// 	warn("%d client closed the connection\n", pid);
+	// 	break;
+	// }
+	int count = 0;
+	printf("185\n");
+	while ((count = Xrecv(sock, buf, sizeof(buf), 0)) != 0) {
+		say("%5d received %d bytes\n", pid, count);
+		n += count;
+		int c = 0;
+		if ((c = Xsend(sock, buf, count, 0)) < 0) {
 			warn("%5d send error\n", pid);
 			break;
 		}
 
-		say("%5d sent %d bytes\n", pid, n);
-   	}
+		say("%5d sent %d bytes\n", pid, c);
+	}
+	say("%5d received %d bytes in total\n", pid, n);
 	say("%5d closing\n", pid);
 	Xclose(sock);
 }
@@ -261,26 +265,21 @@ void echo_stream()
 		say ("Xsock %4d new session\n", sock);
 		say("peer:%s\n", g.dag_string().c_str()); 
 
-		pid_t pid = fork();
+		pid_t pid = Xfork();
 
 		if (pid == -1) {
 			die(-1, "FORK FAILED\n");
 
 		} else if (pid == 0) {
+			// close the parent's listening socket
+			Xclose(acceptor);
+
 			process(sock);
-			if(XremoveSID((const char *)sid_string)) {
-				say("Unable to remove keys for SID %s.\n", sid_string);
-			}else {
-				say("Removed keys for temporary SID %s.\n", sid_string);
-			}
 			exit(0);
 
 		} else {
-			// FIXME: we need to close the socket in the main process or the file
-			// descriptor limit will be hit. But if Xclose is called, the connection
-			// is torn down in click as well keeping the child process from using it.
-			// for now use a regular close to shut it here without affecting the child.
-			close(sock);
+			// close the child's socket
+			Xclose(sock);
 		}
 	}
 
