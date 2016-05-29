@@ -71,15 +71,10 @@ say("In stage control, getting chunk: %s\n", oldUrl);
 				char reply[XIA_MAX_BUF] = {0};
 				dag_to_url(url, 256, &SIDToProfile[remoteSID][oldUrl].newDag);
 								
-				sprintf(reply, "ready %s %s", oldUrl, url);
+				sprintf(reply, "ready %s %s %ld", oldUrl, url, 
+                        SIDToProfile[remoteSID][oldUrl].fetchStartTimestamp - 
+                        SIDToProfile[remoteSID][oldUrl].fetchFinishTimestamp);
 				hearHello(sock);
-
-				///////////////////// 
-				/////////////////////
-				/////////////////////
-				/////////////////////
-				/////////////////////
-				/////////////////////
 
 				// Send chunk ready message to state manager.
 				sendStreamCmd(sock, reply);
@@ -127,12 +122,13 @@ void *stageData(void *)
 				string SID = I.first;
 
                 // For each Content.
-                		//pthread_mutex_lock(&profileLock);
-				//for (auto CID : I.second)
-				//	SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
-				//pthread_mutex_unlock(&profileLock);
+                pthread_mutex_lock(&profileLock);
+				for (auto CID : I.second)
+					SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
+				pthread_mutex_unlock(&profileLock);
 
-				char buf[1024 * 1024];
+				char buf[CHUNKSIZE];
+				//char buf[1024 * 1024];
 				int ret;
 say("Fetching chunks from server. The number of chunks is none, the first chunk is noe\n");
 				for(auto addr : I.second){
@@ -141,7 +137,8 @@ say("Fetching chunks from server. The number of chunks is none, the first chunk 
 					//sockaddr_x addr;
 					//url_to_dag(&addr, (char*)CID.c_str(), CID.size());
 					dag_to_url(CID, 256, &addr);					
-					if ((ret = XfetchChunk(&xcache, buf, 1024 * 1024, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
+                    //if ((ret = XfetchChunk(&xcache, buf, 1024 * 1024, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
+					if ((ret = XfetchChunk(&xcache, buf, CHUNKSIZE, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
 						say("unable to request chunks\n");
                         //add unlock function   --Lwy   1.16
                         pthread_mutex_unlock(&bufLock);
