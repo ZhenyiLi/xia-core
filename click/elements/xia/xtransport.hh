@@ -258,13 +258,13 @@ public:
 	void Xsendto(unsigned short _sport, xia::XSocketMsg *xia_socket_msg, WritablePacket *p_in);
 	void Xrecv(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
 	void Xrecvfrom(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
-	void XrequestChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg, WritablePacket *p_in);
-	void XgetChunkStatus(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
-	void XreadChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
-	void XremoveChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
-	void XpushChunkto(unsigned short _sport, xia::XSocketMsg *xia_socket_msg, WritablePacket *p_in);
-	void XbindPush(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
-	void XputChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
+	//void XrequestChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg, WritablePacket *p_in);
+	//void XgetChunkStatus(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
+	//void XreadChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
+	//void XremoveChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
+	//void XpushChunkto(unsigned short _sport, xia::XSocketMsg *xia_socket_msg, WritablePacket *p_in);
+	//void XbindPush(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
+	//void XputChunk(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
 	void Xpoll(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
 	void Xupdaterv(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
 	void Xfork(unsigned short _sport, xia::XSocketMsg *xia_socket_msg);
@@ -369,7 +369,6 @@ class sock : public Element {
     void set_pending_recv_msg(XSocketMsg *msg) {pending_recv_msg = msg;}
     XIDpair get_key() {return key;}
     void set_key(XIDpair k) {key = k;}
-
 
     XTRANSPORT *get_transport() { return transport; }
 	sock(XTRANSPORT *transport, unsigned short port, int type);
