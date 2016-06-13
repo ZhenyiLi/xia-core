@@ -30,7 +30,7 @@ typedef struct {
 } XcacheBuf;
 
 typedef struct {
-	int dummy;	
+	int dummy;
 } XchunkHandle;
 
 
@@ -53,31 +53,29 @@ int XcacheHandleDestroy(XcacheHandle *h);
 #define XcacheHandleDestroy(...)
 #endif
 
+extern int XputChunk(XcacheHandle *h, const char *data, size_t length, sockaddr_x *info);  //DONE
+extern int XputFile(XcacheHandle *h, const char *filename, size_t chunkSize, sockaddr_x **info);  //DONE
+extern int XputBuffer(XcacheHandle *h, const void *data, size_t length, size_t chunkSize, sockaddr_x **info);  //DONE
+extern int XputMetaChunk(XcacheHandle *h, sockaddr_x *metachunk, sockaddr_x *addrs, socklen_t addrlen, int count); //DONE
 
-int XputFile(XcacheHandle *h, const char *filename, size_t chunkSize, sockaddr_x **info);  //DONE
-//int XputChunk(XcacheHandle *h, const void *data, size_t length, sockaddr_x *info);  //DONE
-int XputChunk(XcacheHandle *h, const char *data, size_t length, sockaddr_x *addr);  //DONE
-int XputBuffer(XcacheHandle *h, const void *data, size_t length, size_t chunkSize, sockaddr_x **info);  //DONE
-int XputMetaChunk(XcacheHandle *h, sockaddr_x *metachunk, sockaddr_x *addrs, socklen_t addrlen, int count); //DONE
+extern int XbufInit(XcacheBuf *xbuf);
+extern int XbufAdd(XcacheBuf *xbuf, void *data, size_t len);
+extern int XbufPut(XcacheHandle *h, XcacheBuf *xbuf, size_t chunkSize, sockaddr_x **info);
+extern void XbufFree(XcacheBuf *xbuf);
 
-int XbufInit(XcacheBuf *xbuf);
-int XbufAdd(XcacheBuf *xbuf, void *data, size_t len);
-int XbufPut(XcacheHandle *h, XcacheBuf *xbuf, size_t chunkSize, sockaddr_x **info);
-void XbufFree(XcacheBuf *xbuf);
+extern int XfetchChunk(XcacheHandle *h, void *buf, size_t buflen, int flags, sockaddr_x *addr, socklen_t addrlen);  //DONE
 
-int XfetchChunk(XcacheHandle *h, void *buf, size_t buflen, int flags, sockaddr_x *addr, socklen_t addrlen);  //DONE
+extern int XbufGetChunk(XcacheHandle *h, XcacheBuf *buf, sockaddr_x *addr, socklen_t addrlen, int *flags);
 
-int XbufGetChunk(XcacheHandle *h, XcacheBuf *buf, sockaddr_x *addr, socklen_t addrlen, int *flags);
+extern int XreadChunk(XcacheHandle *h, sockaddr_x *addr, socklen_t addrlen, void *buf, size_t len, off_t offset);  //DONE
+extern int XchunkInit(XchunkHandle *, XcacheHandle *h, sockaddr_x *addr, socklen_t addrlen);
+extern int XchunkRead(XchunkHandle *, void *buf, size_t len);
 
-int XreadChunk(XcacheHandle *h, sockaddr_x *addr, socklen_t addrlen, void *buf, size_t len, off_t offset);  //DONE
-int XchunkInit(XchunkHandle *, XcacheHandle *h, sockaddr_x *addr, socklen_t addrlen);
-int XchunkRead(XchunkHandle *, void *buf, size_t len);
-
-int XbufReadChunk(XcacheHandle *h, XcacheBuf *xbuf, sockaddr_x *addr, socklen_t addrlen);
-int XregisterNotif(int event, void (*func)(XcacheHandle *, int event, sockaddr_x *addr, socklen_t addrlen));  //DONE
-int XlaunchNotifThread(XcacheHandle *h);  //DONE
-int XgetNotifSocket(XcacheHandle *h);
-int XprocessNotif(XcacheHandle *h);
+extern int XbufReadChunk(XcacheHandle *h, XcacheBuf *xbuf, sockaddr_x *addr, socklen_t addrlen);
+extern int XregisterNotif(int event, void (*func)(XcacheHandle *, int event, sockaddr_x *addr, socklen_t addrlen));  //DONE
+extern int XlaunchNotifThread(XcacheHandle *h);  //DONE
+extern int XgetNotifSocket(XcacheHandle *h);
+extern int XprocessNotif(XcacheHandle *h);
 
 #ifdef __cplusplus
 }

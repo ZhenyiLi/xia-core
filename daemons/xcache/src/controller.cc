@@ -124,7 +124,7 @@ int xcache_controller::fetch_content_remote(sockaddr_x *addr, socklen_t addrlen,
 	LOG_CTRL_INFO("Xcache client now connected with remote\n");
 
 	std::string data;
-	char buf[XIA_MAXBUF] = {0};
+	char buf[1024*1024] = {0};
 	struct cid_header header;
 	size_t remaining;
 	size_t offset;
@@ -154,18 +154,21 @@ int xcache_controller::fetch_content_remote(sockaddr_x *addr, socklen_t addrlen,
 
 	remaining = ntohl(header.length);
 
+
 	while (remaining > 0) {
-		to_recv = remaining > XIA_MAXBUF ? XIA_MAXBUF : remaining;
+		to_recv = remaining > 1024*1024 ? 1024 * 1024 : remaining;
 
 		LOG_CTRL_ERROR("2 Remaining = %d\n", remaining);
 
 		recvd = Xrecv(sock, buf, to_recv, 0);
+		LOG_CTRL_ERROR("recvd = %d, to_recv = %d\n", recvd, to_recv);
 		if (recvd < 0) {
 			LOG_CTRL_ERROR("Receiver Closed the connection - Header"
 				       ".\n");
 			assert(0);
 			Xclose(sock);
 		} else if (recvd == 0) {
+			LOG_CTRL_ERROR("Xrecv returned 0.\n");
 			break;
 		}
 
@@ -178,26 +181,28 @@ int xcache_controller::fetch_content_remote(sockaddr_x *addr, socklen_t addrlen,
 	std::string computed_cid = compute_cid(data.c_str(), data.length());
 	struct xcache_context *context = lookup_context(cmd->context_id());
 
-	if(!context) {
+	if (!context) {
 		LOG_CTRL_ERROR("Context Lookup Failed\n");
 		delete meta;
 		Xclose(sock);
 		return RET_FAILED;
 	}
 
-	if (meta->get_cid() != computed_cid) {
-		/*
-		 * CID Integrity Check Failed
-		 */
-		LOG_CTRL_ERROR("CID Integrity Check Failed.\n");
-		Xclose(sock);
-		return RET_FAILED;
+	if (!(flags & XCF_SKIPCACHE)) {
+		if (__store(context, meta, (const std::string *)&data) == RET_FAILED) {
+			delete meta;
+			Xclose(sock);
+			return RET_FAILED;
+		}
+	} else {
+		if (verify_content(meta, (const std::string *)&data) == false) {
+			delete meta;
+			Xclose(sock);
+			return RET_FAILED;
+		}
 	}
 
-	if(!(flags & XCF_SKIPCACHE))
-		__store(context, meta, (const std::string *)&data);
-
-	if(resp) {
+	if (resp) {
 		resp->set_cmd(xcache_cmd::XCACHE_RESPONSE);
 		resp->set_data(data);
 	}
@@ -304,13 +309,13 @@ void *xcache_controller::__fetch_content(void *__args)
 
 	args->ret = ret;
 
-	if(!(args->flags & XCF_BLOCK)) {
+	if (!(args->flags & XCF_BLOCK)) {
 		/*
 		 * FIXME: In case of error must notify the error
 		 */
 		struct xcache_context *c = args->ctrl->lookup_context(args->cmd->context_id());
 
-		if(c)
+		if (c)
 			args->ctrl->xcache_notify(c, &addr, daglen, XCE_CHUNKARRIVED);
 
 		delete args->cmd;
@@ -464,15 +469,33 @@ int xcache_controller::__store_policy(xcache_meta *meta)
 	return 0;
 }
 
+bool xcache_controller::verify_content(xcache_meta *meta, const std::string *data)
+{
+	if (meta->get_cid() != compute_cid(data->c_str(), data->length()))
+		return false;
+
+	return true;
+}
+
 int xcache_controller::__store(struct xcache_context *context,
 			       xcache_meta *meta, const std::string *data)
 {
 	lock_meta_map();
 	meta->lock();
 
+	if (verify_content(meta, data) == false) {
+		/*
+		 * Content Verification Failed
+		 */
+		LOG_CTRL_ERROR("Content Verification Failed\n");
+		meta->unlock();
+		unlock_meta_map();
+		return RET_FAILED;
+	}
+
 	meta_map[meta->get_cid()] = meta;
 
-	if(__store_policy(meta) < 0) {
+	if (__store_policy(meta) < 0) {
 		LOG_CTRL_ERROR("Context store failed\n");
 		meta->unlock();
 		unlock_meta_map();
@@ -568,7 +591,7 @@ void xcache_controller::send_content_remote(int sock, sockaddr_x *mypath)
 
 	LOG_CTRL_INFO("CID = %s\n", cid.id_string().c_str());
 
-	if (fetch_content_local(mypath, sizeof(sockaddr_x), &resp, NULL, 0)) {
+	if (fetch_content_local(mypath, sizeof(sockaddr_x), &resp, NULL, 0) != RET_OK) {
 		LOG_CTRL_ERROR("This should not happen.\n");
 		assert(0);
 	}
@@ -576,11 +599,13 @@ void xcache_controller::send_content_remote(int sock, sockaddr_x *mypath)
 	struct cid_header header;
 	size_t remaining;
 	size_t offset;
-	size_t sent;
+	int sent;
 
 	header.length = htonl(resp.data().length());
 	remaining = sizeof(header);
 	offset = 0;
+
+	LOG_CTRL_INFO("Header Send Start\n");
 
 	while (remaining > 0) {
 		sent = Xsend(sock, (char *)&header + offset, remaining, 0);
@@ -592,14 +617,19 @@ void xcache_controller::send_content_remote(int sock, sockaddr_x *mypath)
 		}
 		remaining -= sent;
 		offset += sent;
+		LOG_CTRL_INFO("Header Send Remaining %d\n", remaining);
+
 	}
 
 	remaining = resp.data().length();
 	offset = 0;
 
+	LOG_CTRL_INFO("Content Send Start\n");
+
 	while (remaining > 0) {
 		sent = Xsend(sock, (char *)resp.data().c_str() + offset,
 			     remaining, 0);
+		LOG_CTRL_INFO("Sent = %d\n", sent);
 		if (sent < 0) {
 			LOG_CTRL_ERROR("Receiver Closed the connection - Data"
 				       ".\n");
@@ -608,7 +638,10 @@ void xcache_controller::send_content_remote(int sock, sockaddr_x *mypath)
 		}
 		remaining -= sent;
 		offset += sent;
+		LOG_CTRL_INFO("Content Send Remaining %d\n", remaining);
 	}
+	LOG_CTRL_INFO("Send Done\n");
+
 }
 
 int xcache_controller::create_sender(void)
@@ -617,20 +650,20 @@ int xcache_controller::create_sender(void)
 	int xcache_sock;
 	struct addrinfo *ai;
 
-	if((xcache_sock = Xsocket(AF_XIA, SOCK_STREAM, 0)) < 0)
+	if ((xcache_sock = Xsocket(AF_XIA, SOCK_STREAM, 0)) < 0)
 		return -1;
 
-	if(XreadLocalHostAddr(xcache_sock,
-			      myAD, sizeof(myAD), myHID, sizeof(myHID),
-			      my4ID, sizeof(my4ID)) < 0)
+	if (XreadLocalHostAddr(xcache_sock,
+			       myAD, sizeof(myAD), myHID, sizeof(myHID),
+			       my4ID, sizeof(my4ID)) < 0)
 		return -1;
 
-	if(XmakeNewSID(sid_string, sizeof(sid_string))) {
+	if (XmakeNewSID(sid_string, sizeof(sid_string))) {
 		LOG_CTRL_ERROR("XmakeNewSID failed\n");
 		return -1;
 	}
 
-	if(XsetXcacheSID(xcache_sock, sid_string, strlen(sid_string)) < 0)
+	if (XsetXcacheSID(xcache_sock, sid_string, strlen(sid_string)) < 0)
 		return -1;
 
 	LOG_CTRL_DEBUG("XcacheSID is %s\n", sid_string);
