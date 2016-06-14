@@ -60,7 +60,7 @@ void stageControl(int sock, char *cmd)
 	// send the chunk ready msg one by one
 	char url[256];
 	char oldUrl[256];
-	for (int i = 0; i < CIDs.size();++i) {
+	for (int i = 0; i < int(CIDs.size());++i) {
 		dag_to_url(oldUrl, 256, &SIDToProfile[remoteSID][CIDs[i]].oldDag);
 		while (1) {
 say("In stage control, getting chunk: %s\n", oldUrl);
@@ -120,12 +120,6 @@ void *stageData(void *)
 			if (I.second.size() > 0) {
 				string SID = I.first;
 
-                // For each Content.
-                pthread_mutex_lock(&profileLock);
-				for (auto CID : I.second)
-					SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
-				pthread_mutex_unlock(&profileLock);
-
 				char buf[CHUNKSIZE];
 				//char buf[1024 * 1024];
 				int ret;
@@ -137,6 +131,9 @@ say("Fetching chunks from server. The number of chunks is none, the first chunk 
 					//url_to_dag(&addr, (char*)CID.c_str(), CID.size());
 					dag_to_url(CID, 256, &addr);					
                     //if ((ret = XfetchChunk(&xcache, buf, 1024 * 1024, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
+					if (SIDToProfile[SID][CID].fetchStartTimestamp == 0) {
+						SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
+					}
 					if ((ret = XfetchChunk(&xcache, buf, CHUNKSIZE, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
 						say("unable to request chunks\n");
                         //add unlock function   --Lwy   1.16
@@ -183,10 +180,10 @@ say("In stageCmd.\n");
 			break;
 		}
 		if (strncmp(cmd, "xping", 5) == 0){
-			int rtt = getRTT(cmd + 6)
+			int rtt = getRTT(cmd + 6);
 			sprintf(cmd, "rtt %d", rtt);
 			if(Xsend(sock, cmd, strlen(cmd), 0) < 0){
-				die("unable to connect to manager");
+				die(-1,"unable to connect to manager");
 			}
 		}
 say("Successfully receive stage command from stage manager.\n");

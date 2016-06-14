@@ -4,7 +4,8 @@ int main(int argc, char **argv){
 		printf("Usage: testXping host\n");
 		return 0;
 	}
-	int rtt = getRTT(argv[1]);
+	const char * ptr = argv[1];
+	int rtt = getRTT(ptr);
 	printf("RTT to %s is %d ms\n", argv[1], rtt);
 	return 0;
 }

@@ -12,7 +12,9 @@ struct chunkProfile {
 	chunkProfile(string _dag = "", int _state = BLANK):state(_state),dag(_dag){}
 };
 
-int rttWifi, rttInt;
+int rttWifi = 0, rttInt = 0;
+long timeWifi = 0, timeInt = 0;
+int chunkToStage;
 map<int, vector<string> > SIDToDAGs;
 map<int, map<string, chunkProfile> > SIDToProfile;
 map<int, int> stageIndex;
@@ -27,6 +29,16 @@ pthread_mutex_t stageMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t StageControl = PTHREAD_MUTEX_INITIALIZER;
 
 // TODO: mem leak; window pred alg; int netMonSock;
+void updateStageArg(){
+	if(rttWifi && rttInt && timeWifi && timeInt){
+		int left = timeWifi + rttWifi;
+		int right = timeInt + rttWifi + rttInt;
+		chunkToStage = static_cast<double>(left) / right + 1;
+	}
+	else{
+		chunkToStage = 3;
+	}
+}
 void regHandler(int sock, char *cmd)
 {
 say("In regHandler. CMD: %s\n",cmd);
@@ -81,13 +93,13 @@ say("In delegationHandler.\nThe command is %s\n",cmd);
 		pthread_mutex_unlock(&stageMutex);
 		
 		while(true){
-		pthread_mutex_lock(&profileLock);
-		if (SIDToProfile[sock][cmd].state == READY) {
-			//SIDToProfile[sock][cmd].state = IGNORE;
-			break;
+			pthread_mutex_lock(&profileLock);
+			if (SIDToProfile[sock][cmd].state == READY) {
+				//SIDToProfile[sock][cmd].state = IGNORE;
+				break;
 say("DAG: %s change into IGNORE!\n",cmd);
-		}
-		pthread_mutex_unlock(&profileLock);
+			}
+			pthread_mutex_unlock(&profileLock);
 		}
 		tmp = SIDToProfile[sock][cmd].dag;
 		//SIDToProfile[sock].erase(cmd);
@@ -136,6 +148,10 @@ say("Receive a chunk request\n");
 			}
 			pthread_mutex_unlock(&StageControl);
 		}
+		else if (strncmp(cmd, "time", 4) == 0){
+			sscanf(cmd, "time %ld", &timeWifi);
+			updateStageArg();		
+		}
 		//usleep(SCAN_DELAY_MSEC*1000);
 	}
 	close(sock);
@@ -170,11 +186,12 @@ cerr << "Current " << getAD() << endl;
 	rttWifi = getRTT(getStageServiceName());
 	char rttCMD[100] = "";
 	sprintf(rttCMD,"xping %s", getXftpName());
-	if(Xsend(netStageSock, rttCMD, strlen(rttCMD), 0) < 0)
+	if(Xsend(netStageSock, rttCMD, strlen(rttCMD), 0) < 0
 		|| Xrecv(netStageSock, rttCMD, sizeof(rttCMD), 0) < 0){
 
 	}
-	sscanf("rtt %d",&rttInt);
+	sscanf(rttCMD,"rtt %d",&rttInt);
+	updateStageArg();
 say("++++++++++++++++++++++++++++++++++++The current netStageSock is %d\n", netStageSock);
 	if (netStageSock == -1) {
 say("netStageOn is false!\n");
@@ -211,25 +228,33 @@ say("Handling the sock: %d\n",sock);
 			//		needStage.insert(dags[i]);
 			//}	
 			pthread_mutex_lock(&stageMutex);
-			if(stageIndex[sock] != -1){
-				int tmp = stageIndex[sock];
-				if(tmp > 1 && SIDToProfile[sock][dags[tmp - 2]].state == BLANK)
-					needStage.insert(dags[tmp - 2]);
-				if(tmp > 0 && SIDToProfile[sock][dags[tmp - 1]].state == BLANK)
-					needStage.insert(dags[tmp - 1]);
-				if(SIDToProfile[sock][dags[tmp]].state == BLANK)
-					needStage.insert(dags[tmp]);
-				if(tmp < static_cast<int>(SIDToDAGs[sock].size()) - 1 && SIDToProfile[sock][dags[tmp + 1]].state == BLANK)
-					needStage.insert(dags[tmp + 1]);
-				if(tmp < static_cast<int>(SIDToDAGs[sock].size()) - 2 && SIDToProfile[sock][dags[tmp + 2]].state == BLANK)
-					needStage.insert(dags[tmp + 2]);
-				stageIndex[sock] = -1;
-			}
-			else{
-				pthread_mutex_unlock(&stageMutex);
-				pthread_mutex_unlock(&profileLock);
-				continue;
-			}
+			//if(stageIndex[sock] != -1){
+			//	int tmp = stageIndex[sock];
+			//	if(tmp > 1 && SIDToProfile[sock][dags[tmp - 2]].state == BLANK)
+			//		needStage.insert(dags[tmp - 2]);
+			//	if(tmp > 0 && SIDToProfile[sock][dags[tmp - 1]].state == BLANK)
+			//		needStage.insert(dags[tmp - 1]);
+			//	if(SIDToProfile[sock][dags[tmp]].state == BLANK)
+			//		needStage.insert(dags[tmp]);
+			//	if(tmp < static_cast<int>(SIDToDAGs[sock].size()) - 1 && SIDToProfile[sock][dags[tmp + 1]].state == BLANK)
+			//		needStage.insert(dags[tmp + 1]);
+			//	if(tmp < static_cast<int>(SIDToDAGs[sock].size()) - 2 && SIDToProfile[sock][dags[tmp + 2]].state == BLANK)
+			//		needStage.insert(dags[tmp + 2]);
+			//	stageIndex[sock] = -1;
+			//}
+			//else{
+			//	pthread_mutex_unlock(&stageMutex);
+			//	pthread_mutex_unlock(&profileLock);
+			//	continue;
+			//}
+			int beg = stageIndex[sock];
+			stageIndex[sock] = -1;
+			for(int i = beg, j = 0; j <= chunkToStage && i < int(dags.size()); ++i){
+				if(SIDToProfile[sock][dags[i]].state == BLANK){
+					needStage.insert(dags[i]);
+					j++;
+				}
+			} 
 			pthread_mutex_unlock(&stageMutex);
 			pthread_mutex_unlock(&profileLock);			
 			if(needStage.size() == 0){
@@ -254,7 +279,8 @@ say("needStage: %s\n",dag.c_str());
 				}
 				char oldDag[256];
 				char newDag[256];
-				sscanf(reply, "%*s %s %s",oldDag, newDag);
+				sscanf(reply, "%*s %s %s %ld",oldDag, newDag, &timeInt);
+				updateStageArg();
 say("cmd: %s, old:%s  new:%s\n",reply,oldDag,newDag);
 				pthread_mutex_lock(&profileLock);
 				SIDToProfile[sock][oldDag].dag = newDag;

@@ -114,6 +114,11 @@ die(-1, "fail to recv from stageManager!");
 die(-1, "XcacheGetChunk Failed\n");
 		}
 		long end_time = now_msec();
+				
+		if(stage){
+			sprintf(cmd, "time %ld", end_time - start_time);
+			Xsend(stageManagerSock, cmd, strlen(cmd), 0);		
+		}
 		cerr << "Running time is: "<< end_time - start_time << "ms" << endl;
 say("writing %d bytes of chunk %s to disk\n", len, string2char(CIDs[i]));
 		fwrite(data, 1, len, fd);

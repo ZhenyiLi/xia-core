@@ -96,7 +96,7 @@ long string2long(string str);
 // result the string result of system command
 string execSystem(string cmd);
 
-int getRTT(const char * host)
+int getRTT(const char * host);
 
 bool file_exists(const char *filename);
 
@@ -104,7 +104,7 @@ bool file_exists(const char *filename);
 long now_msec();
 
 // Unix epoch time in usec
-long long now_usec()
+long long now_usec();
 
 string getSSID();
 
