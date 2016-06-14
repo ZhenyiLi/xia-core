@@ -72,8 +72,8 @@ int getFile(int sock)
 			close(stageManagerSock);
 			die(-1, "Unable to communicate with the local prefetching service\n");
 		}
+		say("After updateManifest\n");
 	}
-
 	XcacheHandleInit(&h);
 
 	vector<unsigned int> chunkSize; // in bytes

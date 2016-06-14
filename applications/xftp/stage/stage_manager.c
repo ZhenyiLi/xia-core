@@ -14,7 +14,7 @@ struct chunkProfile {
 
 int rttWifi = 0, rttInt = 0;
 long timeWifi = 0, timeInt = 0;
-int chunkToStage;
+int chunkToStage = 3;
 map<int, vector<string> > SIDToDAGs;
 map<int, map<string, chunkProfile> > SIDToProfile;
 map<int, int> stageIndex;
@@ -68,6 +68,7 @@ say("++++++++++++++++++++++++++++++++The remoteSID is %d\n", sock);
 		pthread_mutex_lock(&stageMutex);
 		stageIndex[sock] = 0;
 		pthread_mutex_unlock(&stageMutex);
+		pthread_mutex_unlock(&StageControl);
 say("Receive the reg done command\n");
 		return;
 	}
@@ -120,7 +121,7 @@ void *clientCmd(void *socketid)
 	int n;
 
 	pthread_mutex_lock(&stageMutex);
-	stageIndex[sock] = -1;
+	stageIndex[sock] = 0;
 	pthread_mutex_unlock(&stageMutex);
 	while (1) {
 		memset(cmd, 0, sizeof(cmd));
@@ -139,7 +140,7 @@ say("clientCmd````````````````````````````````Receive the command that: %s\n", c
 		if (strncmp(cmd, "reg", 3) == 0) {
 say("Receive a chunk list registration message\n");
 			regHandler(sock, cmd);
-			pthread_mutex_unlock(&StageControl);
+			//pthread_mutex_unlock(&StageControl);
 		}
 		else if (strncmp(cmd, "fetch", 5) == 0) {
 say("Receive a chunk request\n");
@@ -193,6 +194,7 @@ cerr << "Current " << getAD() << endl;
 	sscanf(rttCMD,"rtt %d",&rttInt);
 	updateStageArg();
 say("++++++++++++++++++++++++++++++++++++The current netStageSock is %d\n", netStageSock);
+say("RTTWireless = %d RTTInternet = %d\n", rttWifi, rttInt);
 	if (netStageSock == -1) {
 say("netStageOn is false!\n");
 	netStageOn = false;
@@ -249,6 +251,8 @@ say("Handling the sock: %d\n",sock);
 			//}
 			int beg = stageIndex[sock];
 			stageIndex[sock] = -1;
+			if(beg == -1)
+				continue;
 			for(int i = beg, j = 0; j <= chunkToStage && i < int(dags.size()); ++i){
 				if(SIDToProfile[sock][dags[i]].state == BLANK){
 					needStage.insert(dags[i]);
@@ -256,11 +260,10 @@ say("Handling the sock: %d\n",sock);
 				}
 			} 
 			pthread_mutex_unlock(&stageMutex);
-			pthread_mutex_unlock(&profileLock);			
+			pthread_mutex_unlock(&profileLock);					
 			if(needStage.size() == 0){
 				continue;
 			}
-
 			char cmd[XIA_MAX_BUF] = {0};
 			char reply[XIA_MAX_BUF] = {0};
 

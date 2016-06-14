@@ -673,7 +673,9 @@ say("In updateManifest()\n");
 	int offset = 0;
 	int count = CIDs.size();
 	int num;
+say("Say something\n");
 	while (offset < count) {
+say("Say something\n");
 		num = MAX_CID_NUM;
 		if (count - offset < MAX_CID_NUM) {
 			num = count - offset;
@@ -696,7 +698,7 @@ say("In updateManifest()\n");
 	}
 	say("Waiting for manager finish profile.\n");
 	say("In updateManifest, register to manager done.");
-	usleep(SCAN_DELAY_MSEC*000);
+	usleep(SCAN_DELAY_MSEC*1000);
 
 	return 0;
 }

@@ -10,7 +10,7 @@ ftpClient:
 	$(CC) $(CFLAGS) xftp_adv_client.c stage_utils.c -o xftp_adv_client -lprotobuf $(LDFLAGS)
 
 manager:
-	$(CC) $(CFLAGS) stage_manager.c stage_utils.c -o stage_manager -lprotobuf $(LDFLAGS)
+	$(CC) $(CFLAGS) stage_manager.c stage_utils.c -o stage_manager  -g -lprotobuf $(LDFLAGS)
 stageServer:
 	$(CC) $(CFLAGS) stage_server.c stage_utils.c -o stage_server -lprotobuf $(LDFLAGS)
 xping:

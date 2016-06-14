@@ -123,7 +123,7 @@ void *stageData(void *)
 				char buf[CHUNKSIZE];
 				//char buf[1024 * 1024];
 				int ret;
-say("Fetching chunks from server. The number of chunks is none, the first chunk is noe\n");
+say("Fetching chunks from server.\n");
 				for(auto addr : I.second){
 					char CID[256];
 					
@@ -185,6 +185,7 @@ say("In stageCmd.\n");
 			if(Xsend(sock, cmd, strlen(cmd), 0) < 0){
 				die(-1,"unable to connect to manager");
 			}
+			continue;
 		}
 say("Successfully receive stage command from stage manager.\n");
 		if (strncmp(cmd, "stage", 5) == 0) {
