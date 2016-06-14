@@ -81,14 +81,13 @@ int getFile(int sock)
 	vector<long> chunkStartTime;
 	vector<long> chunkFinishTime;
 
-	long fetchTime = now_msec();
 	long startTime = now_msec();
 	unsigned int bytes = 0;
 
 	// chunk fetching begins
 	char data[CHUNKSIZE];
 	for (unsigned int i = 0; i < CIDs.size(); i++) {
-		clock_t start_time = clock();
+		
 say("The number of chunks is %d.\n", CIDs.size());
 say("Fetching chunk %u / %lu\n", i, CIDs.size() - 1);
 		int len;
@@ -110,17 +109,18 @@ die(-1, "fail to recv from stageManager!");
 		else{
 			url_to_dag(&addr,(char*)CIDs[i].c_str(), CIDs[i].size());
 		}
+		long start_time = now_msec();
 		if((len = XfetchChunk(&h, data, CHUNKSIZE, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
 die(-1, "XcacheGetChunk Failed\n");
 		}
-		clock_t end_time = clock();
-		cerr << "Running time is: "<< static_cast<double>(end_time - start_time) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
+		long end_time = now_msec();
+		cerr << "Running time is: "<< end_time - start_time << "ms" << endl;
 say("writing %d bytes of chunk %s to disk\n", len, string2char(CIDs[i]));
 		fwrite(data, 1, len, fd);
 		bytes += len;
 		chunkSize.push_back(len);
-		latency.push_back(now_msec()-fetchTime);
-		chunkStartTime.push_back(fetchTime);
+		latency.push_back(end_time - start_time);
+		chunkStartTime.push_back(start_time);
 		chunkFinishTime.push_back(now_msec());
 	}
 	fclose(fd);

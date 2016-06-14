@@ -78,8 +78,6 @@ void warn(const char *fmt, ...);
 // write the message to stdout, and exit the app
 void die(int ecode, const char *fmt, ...);
 
-char *randomString(char *buf, int size);
-
 // format: cid1 cid2, ... cidn
 vector<string> strVector(char *strs);
 
@@ -98,10 +96,15 @@ long string2long(string str);
 // result the string result of system command
 string execSystem(string cmd);
 
+int getRTT(const char * host)
+
 bool file_exists(const char *filename);
 
 // Unix epoch time in msec
 long now_msec();
+
+// Unix epoch time in usec
+long long now_usec()
 
 string getSSID();
 

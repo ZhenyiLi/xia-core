@@ -42,7 +42,6 @@ void stageControl(int sock, char *cmd)
 	vector<string> CIDs = strVector(cmd);
 
 	for(auto CID: CIDs)
-		cerr << "test !!!!!!!" << CID << endl;
 	pthread_mutex_lock(&profileLock);
 	for (auto CID : CIDs) {
 		SIDToProfile[remoteSID][CID].fetchState = BLANK;
@@ -182,6 +181,13 @@ say("In stageCmd.\n");
 		if ((n = Xrecv(sock, cmd, sizeof(cmd), 0))  < 0) {
 			warn("socket error while waiting for data, closing connection\n");
 			break;
+		}
+		if (strncmp(cmd, "xping", 5) == 0){
+			int rtt = getRTT(cmd + 6)
+			sprintf(cmd, "rtt %d", rtt);
+			if(Xsend(sock, cmd, strlen(cmd), 0) < 0){
+				die("unable to connect to manager");
+			}
 		}
 say("Successfully receive stage command from stage manager.\n");
 		if (strncmp(cmd, "stage", 5) == 0) {

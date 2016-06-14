@@ -6,10 +6,13 @@ string lastSSID, currSSID;
 struct chunkProfile {
 	int state;
 	string dag;
+    long stageStartTimestemp;
+    long stageFinishTimestemp;
 
 	chunkProfile(string _dag = "", int _state = BLANK):state(_state),dag(_dag){}
 };
 
+int rttWifi, rttInt;
 map<int, vector<string> > SIDToDAGs;
 map<int, map<string, chunkProfile> > SIDToProfile;
 map<int, int> stageIndex;
@@ -164,6 +167,14 @@ cerr << "Current " << getAD() << endl;
 //netStageSock is used to communicate with stage server.
 	getNewAD(myAD);
 	int netStageSock = registerStageService(getStageServiceName(), myAD, myHID, stageAD, stageHID);
+	rttWifi = getRTT(getStageServiceName());
+	char rttCMD[100] = "";
+	sprintf(rttCMD,"xping %s", getXftpName());
+	if(Xsend(netStageSock, rttCMD, strlen(rttCMD), 0) < 0)
+		|| Xrecv(netStageSock, rttCMD, sizeof(rttCMD), 0) < 0){
+
+	}
+	sscanf("rtt %d",&rttInt);
 say("++++++++++++++++++++++++++++++++++++The current netStageSock is %d\n", netStageSock);
 	if (netStageSock == -1) {
 say("netStageOn is false!\n");
