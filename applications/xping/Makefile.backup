@@ -9,8 +9,8 @@ SOURCES=$(addsuffix .c, $(OUT))
 
 all: $(TARGETS)
 
-xping:
-	$(CC) $(CFLAGS) xping.c -o xping $(LDFLAGS)
+$(TARGETS): $(SOURCES)
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
 clean: 
 	-rm $(TARGETS)
