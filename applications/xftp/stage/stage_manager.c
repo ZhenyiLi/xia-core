@@ -12,26 +12,35 @@ struct chunkProfile {
     chunkProfile(string _dag = "", int _state = BLANK): state(_state), dag(_dag) {}
 };
 
-int rttWifi = 0, rttInt = 0;
+int rttWifi = -1, rttInt = -1;
 long timeWifi = 0, timeInt = 0;
-int chunkToStage = 3;
+int chunkToStage = 3, alreadyStage = 0;
 
 map<int, vector<string> > SIDToDAGs;
 map<int, map<string, chunkProfile> > SIDToProfile;
-map<int, int> stageIndex;
+map<int, int> fetchIndex;
 
 bool netStageOn = true;
 int thread_c = 0;
 
+
+// TODO: this is not easy to manage in a centralized manner because we can have multiple threads for staging data due to mobility and we should have a pair of mutex and cond for each thread
 pthread_mutex_t profileLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t dagVecLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t stageMutex = PTHREAD_MUTEX_INITIALIZER;
-// TODO: this is not easy to manage in a centralized manner because we can have multiple threads for staging data due to mobility and we should have a pair of mutex and cond for each thread
 pthread_mutex_t StageControl = PTHREAD_MUTEX_INITIALIZER;
+
+
+long timeStamp;
+ofstream connetTime("connetTime.log");
+ofstream windowToStage("windowToStage.log");
+ofstream managerTime("managerTime.log");
+
+
 
 //Update the stage window
 void updateStageArg() {
-    if (rttWifi && rttInt && timeWifi && timeInt) {
+    if (rttWifi != -1 && rttInt != -1 && timeWifi && timeInt) {
         int left = timeWifi + rttWifi;
         int right = timeInt + rttWifi + rttInt;
         chunkToStage = static_cast<double>(left) / right + 1;
@@ -39,6 +48,10 @@ void updateStageArg() {
     else {
         chunkToStage = 3;
     }
+    windowToStage << "rttWifi: " << rttWifi
+                  << " rttInt: " << rttInt
+                  << " timeWifi: " << timeWifi
+                  << " timeInt: " << timeInt << endl;
 }
 // TODO: mem leak; window pred alg; int netMonSock;
 void regHandler(int sock, char *cmd)
@@ -68,7 +81,7 @@ void regHandler(int sock, char *cmd)
 
     else if (strncmp(cmd, "reg done", 8) == 0) {
         pthread_mutex_lock(&stageMutex);
-        stageIndex[sock] = 0;
+        fetchIndex[sock] = 0;
         pthread_mutex_unlock(&stageMutex);
         pthread_mutex_unlock(&StageControl);
         say("Receive the reg done command\n");
@@ -91,10 +104,6 @@ int delegationHandler(int sock, char *cmd)
         auto dis = distance(SIDToDAGs[sock].begin(), iter);
         pthread_mutex_unlock(&dagVecLock);
         //SIDToDAGs[sock].erase();
-        pthread_mutex_lock(&stageMutex);
-        stageIndex[sock] = dis;
-        pthread_mutex_unlock(&stageMutex);
-
         while (true) {
             pthread_mutex_lock(&profileLock);
             if (SIDToProfile[sock][cmd].state == READY) {
@@ -107,6 +116,10 @@ int delegationHandler(int sock, char *cmd)
         tmp = SIDToProfile[sock][cmd].dag;
         //SIDToProfile[sock].erase(cmd);
         pthread_mutex_unlock(&profileLock);
+        pthread_mutex_lock(&stageMutex);
+        fetchIndex[sock] = dis;
+        alreadyStage--;
+        pthread_mutex_unlock(&stageMutex);
     }
     if (send(sock, tmp.c_str(), tmp.size(), 0) < 0) {
         warn("socket error while sending data, closing connection\n");
@@ -123,7 +136,7 @@ void *clientCmd(void *socketid)
     int n;
 
     pthread_mutex_lock(&stageMutex);
-    stageIndex[sock] = 0;
+    fetchIndex[sock] = 0;
     pthread_mutex_unlock(&stageMutex);
     while (1) {
         memset(cmd, 0, sizeof(cmd));
@@ -212,8 +225,14 @@ void *stageData(void *)
     while (1) {
         pthread_mutex_lock(&StageControl);
         say("*********************************In while loop of stageData\n");
+        if(!isConnect()){
+            long newStamp = now_msec();
+            connection << lastSSID << " disconnect. Last: " << newStamp - timeStamp << "ms." << endl;
+        }
         string currSSID = getSSID();
         if (lastSSID != currSSID) {
+            connection << currSSID << "Connect." << endl;
+            timeStamp = now_msec();
             say("Thread id: %d Network changed, create another thread to continue!\n");
             lastSSID = currSSID;
             pthread_t thread_stageDataNew;
@@ -229,18 +248,19 @@ void *stageData(void *)
             say("Handling the sock: %d\n", sock);
             pthread_mutex_lock(&profileLock);
             pthread_mutex_lock(&stageMutex);
-            int beg = stageIndex[sock];
-            stageIndex[sock] = -1;
-            if (beg == -1)
+            int beg = fetchIndex[sock];
+            if (alreadyStage >= chunkToStage)
                 continue;
-            for (int i = beg, j = 0; j < chunkToStage && i < int(dags.size()); ++i) {
+            for (int i = beg, j = 0; j < alreadyStage - chunkToStage && i < int(dags.size()); ++i) {
                 say("Before needStage: i = %d, beg = %d, dag = %s State: %d\n",i, beg, dags[i].c_str(),SIDToProfile[sock][dags[i]].state);
                 if (SIDToProfile[sock][dags[i]].state == BLANK) {
                     say("needStage: i = %d, beg = %d, dag = %s\n",i, beg, dags[i].c_str());
+                    SIDToProfile[sock][dags[i]].state = PENDING;
                     needStage.insert(dags[i]);
                     j++;
                 }
             }
+            alreadyStage += needStage.size();
             pthread_mutex_unlock(&stageMutex);
             pthread_mutex_unlock(&profileLock);
             say("Size of NeedStage: %d", needStage.size());
@@ -253,6 +273,7 @@ void *stageData(void *)
             sprintf(cmd, "stage");
             for (auto dag : needStage) {
                 say("needStage: %s\n", dag.c_str());
+                SIDToProfile[sock][dag].stageStartTimestemp = now_msec();
                 sprintf(cmd, "%s %s", cmd, dag.c_str());
             }
 
@@ -271,6 +292,8 @@ void *stageData(void *)
                 pthread_mutex_lock(&profileLock);
                 SIDToProfile[sock][oldDag].dag = newDag;
                 SIDToProfile[sock][oldDag].state = READY;
+                SIDToProfile[sock][oldDag].stageFinishTimestemp = now_msec();
+                managerTime << "OldDag: " << oldDag << " NewDag: " << newDag << " StageTime: " << SIDToProfile[sock][oldDag].stageFinishTimestemp - SIDToProfile[sock][oldDag].stageStartTimestemp << " ms." << endl;
                 pthread_mutex_unlock(&profileLock);
             }
         }
@@ -282,6 +305,8 @@ int main()
 {
     lastSSID = getSSID();
     currSSID = lastSSID;
+    timeStamp = now_msec();
+    connection << currSSID << "Connect." << endl;
     int stageSock = registerUnixStreamReceiver(UNIXMANAGERSOCK);
     pthread_t thread_stageData;
 

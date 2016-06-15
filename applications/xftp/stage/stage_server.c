@@ -22,6 +22,7 @@ struct chunkProfile {
     sockaddr_x newDag;
 };
 
+ofstream stageServerTime("stageServerTime.log");
 // Used by different service to communicate with each other.
 map<string, map<string, chunkProfile> > SIDToProfile;   // stage state
 map<string, vector<sockaddr_x> > SIDToBuf; // chunk buffer to stage
@@ -77,6 +78,8 @@ void stageControl(int sock, char *cmd)
                         SIDToProfile[remoteSID][oldUrl].fetchStartTimestamp -
                         SIDToProfile[remoteSID][oldUrl].fetchFinishTimestamp);
                 hearHello(sock);
+                stageServerTime << "OldDag: " << oldUrl << " NewDag: " << url << " StageTime: " << SIDToProfile[remoteSID][oldUrl].fetchStartTimestamp -
+                        SIDToProfile[remoteSID][oldUrl].fetchFinishTimestamp << endl;
 
                 // Send chunk ready message to state manager.
                 sendStreamCmd(sock, reply);

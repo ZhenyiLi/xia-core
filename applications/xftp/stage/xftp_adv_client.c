@@ -121,7 +121,7 @@ int getFile(int sock)
             sprintf(cmd, "time %ld", end_time - start_time);
             Xsend(stageManagerSock, cmd, strlen(cmd), 0);
         }
-        logFile << i <<" Chunk. Running time is: " << end_time - start_time << "ms" << endl;
+        logFile << i <<" Chunk. Running time is: " << end_time - start_time << " ms" << endl;
         say("writing %d bytes of chunk %s to disk\n", len, string2char(CIDs[i]));
         fwrite(data, 1, len, fd);
         bytes += len;
@@ -132,7 +132,7 @@ int getFile(int sock)
     }
     fclose(fd);
     long finishTime = now_msec();
-    logFile << "Received file" << fout << "at "<< (1000 * (float)bytes / 1024) / (float)(finishTime - startTime) << " MB/s (Time: " << finishTime - startTime << " msec, Size: " << bytes << "bytes)\n";
+    logFile << "Received file " << fout << " at "<< (1000 * (float)bytes / 1024) / (float)(finishTime - startTime) << " MB/s (Time: " << finishTime - startTime << " msec, Size: " << bytes << "bytes)\n";
     sendStreamCmd(sock, "done");    // chunk fetching ends, send command to server
     for (unsigned int i = 0; i < CIDs.size(); i++) {
         logFile << fout << "\t" << CIDs[i] << "\t" << chunkSize[i] << " B\t" << latency[i] << "\t" << chunkStartTime[i] << "\t" << chunkFinishTime[i] << endl;

@@ -29,7 +29,7 @@ void *recvCmd (void *socketid)
 			warn("socket error while waiting for data, closing connection\n");
 			break;
 		}
-
+say("Receive cmd: %s\n", cmd);
 		if (strncmp(cmd, "get", 3) == 0) {
 			fname = &cmd[4];
 			say("Client requested file %s\n", fname);

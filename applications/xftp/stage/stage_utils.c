@@ -145,7 +145,11 @@ string getSSID()
 	}
 	return ssid;
 }
-
+bool isConnect()
+{
+	string ssid = execSystem(GETSSID_CMD);
+	return !ssid.empty();
+}
 string getAD()
 {
 	int sock;
