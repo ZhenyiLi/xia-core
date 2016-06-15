@@ -30,8 +30,9 @@ map<string, vector<sockaddr_x> > SIDToBuf; // chunk buffer to stage
 
 // TODO: non-blocking fasion -- stage manager can send another stage request before get a ready response
 // put the CIDs into the stage buffer, and "ready" msg one by one
-
-void stageControl(int sock, char *cmd, int chunkSock)
+int chunkSock;
+XcacheHandle xcache;
+void stageControl(int sock, char *cmd)
 {
     //pthread_mutex_lock(&timeLock);
     //SIDToTime[remoteSID] = now_msec();
@@ -41,7 +42,7 @@ void stageControl(int sock, char *cmd, int chunkSock)
     char remoteHID[MAX_XID_SIZE];
     char remoteSID[MAX_XID_SIZE];
 
-    XgetRemoteAddr(sock, remoteAD, remoteHID, remoteSID); // get stage manager's SID
+    XgetRemoteAddr(sock, remoteAD, remoteHID, remoteSID); // get stage manager's remoteSID
 
     vector<string> CIDs = strVector(cmd);
 
@@ -54,10 +55,11 @@ void stageControl(int sock, char *cmd, int chunkSock)
 
     // send the chunk ready msg one by one
     char url[256];
-    char CID[256];
-    for (int i = 0; i < int(CIDs.size()); ++i) {
-        if (SIDToProfile[SID][CID].fetchStartTimestamp == 0) {
-            SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
+    char buf[CHUNKSIZE];
+    int ret;
+    for (auto CID : CIDs) {
+        if (SIDToProfile[remoteSID][CID].fetchStartTimestamp == 0) {
+            SIDToProfile[remoteSID][CID].fetchStartTimestamp = now_msec();
         }
         if ((ret = XfetchChunk(&xcache, buf, CHUNKSIZE, XCF_BLOCK, &SIDToProfile[remoteSID][CID].oldDag, sizeof(SIDToProfile[remoteSID][CID].oldDag))) < 0) {
             die(-1,"unable to request chunks\n");
@@ -66,19 +68,19 @@ void stageControl(int sock, char *cmd, int chunkSock)
             //pthread_exit(NULL);
         }
 
-        if (XputChunk(&xcache, (const char* )buf, ret, &SIDToProfile[SID][CID].newDag) < 0) {
+        if (XputChunk(&xcache, (const char* )buf, ret, &SIDToProfile[remoteSID][CID].newDag) < 0) {
             die(-1,"unable to put chunks\n");
             //pthread_exit(NULL);
         }
-        if (SIDToProfile[SID][CID].fetchFinishTimestamp == 0) {
-            SIDToProfile[SID][CID].fetchFinishTimestamp = now_msec();
+        if (SIDToProfile[remoteSID][CID].fetchFinishTimestamp == 0) {
+            SIDToProfile[remoteSID][CID].fetchFinishTimestamp = now_msec();
         }
-        SIDToProfile[SID][CID].fetchState = READY;
+        SIDToProfile[remoteSID][CID].fetchState = READY;
         //add the lock and unlock action    --Lwy   1.16
         char reply[XIA_MAX_BUF] = "";
         dag_to_url(url, 256, &SIDToProfile[remoteSID][CID].newDag);
 
-        sprintf(reply, "ready %s %s %ld", CID, url,
+        sprintf(reply, "ready %s %s %ld", CID.c_str(), url,
                 SIDToProfile[remoteSID][CID].fetchStartTimestamp -
                 SIDToProfile[remoteSID][CID].fetchFinishTimestamp);
         hearHello(sock);
@@ -177,13 +179,11 @@ void *stageData(void *)
 */
 void *stageCmd(void *socketid)
 {
-    int chunkSock;
+    
     char cmd[XIA_MAXBUF];
     int sock = *((int*)socketid);
     int n = -1;
 
-    XcacheHandle xcache;
-    XcacheHandleInit(&xcache);
     // Create socket with server.
     if ((chunkSock = Xsocket(AF_XIA, XSOCK_CHUNK, 0)) < 0) {
         die(-1, "unable to create chunk socket\n");
@@ -210,12 +210,11 @@ void *stageCmd(void *socketid)
         say("Successfully receive stage command from stage manager.\n");
         if (strncmp(cmd, "stage", 5) == 0) {
             say("Receive a stage message: %s\n", cmd);
-            stageControl(sock, cmd + 6, chunkSock);
+            stageControl(sock, cmd + 6);
         }
     }
 
     Xclose(sock);
-    Xclose(chunkSock);
     say("Socket closed\n");
     pthread_exit(NULL);
 }
@@ -225,6 +224,7 @@ int main()
     //pthread_t thread_stage;
     //pthread_create(&thread_stage, NULL, stageData, NULL); // dequeue, stage and update profile
 
+    XcacheHandleInit(&xcache);
     stageServerSock = registerStreamReceiver(getStageServiceName(), myAD, myHID, my4ID);
     say("The current stageServerSock is %d\n", stageServerSock);
     blockListener((void *)&stageServerSock, stageCmd);
