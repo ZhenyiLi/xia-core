@@ -79,13 +79,15 @@ void stageControl(int sock, char *cmd)
         //add the lock and unlock action    --Lwy   1.16
         char reply[XIA_MAX_BUF] = "";
         dag_to_url(url, 256, &SIDToProfile[remoteSID][CID].newDag);
-
-        sprintf(reply, "ready %s %s %ld", CID.c_str(), url,
-                SIDToProfile[remoteSID][CID].fetchStartTimestamp -
-                SIDToProfile[remoteSID][CID].fetchFinishTimestamp);
+	char oldUrl[256];
+	dag_to_url(oldUrl, 256, &SIDToProfile[remoteSID][CID].oldDag);
+        memset(reply, 0 ,sizeof(reply));
+        sprintf(reply, "ready %s %s %ld", oldUrl, url,
+                SIDToProfile[remoteSID][CID].fetchFinishTimestamp -
+                SIDToProfile[remoteSID][CID].fetchStartTimestamp);
         hearHello(sock);
-        stageServerTime << "OldDag: " << CID << " NewDag: " << url << " StageTime: " << SIDToProfile[remoteSID][CID].fetchStartTimestamp -
-                        SIDToProfile[remoteSID][CID].fetchFinishTimestamp << endl;
+        stageServerTime << "OldDag: " << oldUrl << " NewDag: " << url << " StageTime: " << SIDToProfile[remoteSID][CID].fetchFinishTimestamp -
+                        SIDToProfile[remoteSID][CID].fetchStartTimestamp << endl;
 
         // Send chunk ready message to state manager.
         sendStreamCmd(sock, reply);

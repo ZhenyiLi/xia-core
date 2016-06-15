@@ -125,7 +125,7 @@ int delegationHandler(int sock, char *cmd)
         warn("socket error while sending data, closing connetTime\n");
         return -1;
     }
-    say("End of delegationHandler");
+    say("End of delegationHandler\n");
     return 0;
 }
 
@@ -159,12 +159,16 @@ void *clientCmd(void *socketid)
         }
         else if (strncmp(cmd, "fetch", 5) == 0) {
             say("Receive a chunk request\n");
-            if (delegationHandler(sock, cmd + 6) < 0) {
+	    pthread_mutex_unlock(&StageControl);
+            char dag[256] = ""; 
+            sscanf(cmd, "fetch %s Time:%ld" ,dag, &timeWifi);
+            if (delegationHandler(sock, dag) < 0) {
                 break;
             }
             pthread_mutex_unlock(&StageControl);
         }
         else if (strncmp(cmd, "time", 4) == 0) {
+            say("Get Time! cmd: %s\n", cmd);
             sscanf(cmd, "time %ld", &timeWifi);
             updateStageArg();
         }
@@ -223,6 +227,7 @@ void *stageData(void *)
     // TODO: need to handle the case that new SID joins dynamically
     // TODO: handle no in-net staging service
     while (1) {
+        say("*********************************Before while loop of stageData\n");
         pthread_mutex_lock(&StageControl);
         say("*********************************In while loop of stageData\n");
         if(!isConnect()){
@@ -251,8 +256,11 @@ void *stageData(void *)
             int beg = fetchIndex[sock];
             fetchIndex[sock] = -1;
             say("AlreadyStage: %d chunkToStage: %d\n",alreadyStage, chunkToStage);
-            if (alreadyStage >= chunkToStage || beg == -1)
-                continue;
+            if (alreadyStage >= chunkToStage || beg == -1){
+               pthread_mutex_unlock(&stageMutex);
+               pthread_mutex_unlock(&profileLock); 
+               break;
+            }
             for (int i = beg, j = 0; j < chunkToStage - alreadyStage && i < int(dags.size()); ++i) {
                 say("Before needStage: i = %d, beg = %d, dag = %s State: %d\n",i, beg, dags[i].c_str(),SIDToProfile[sock][dags[i]].state);
                 if (SIDToProfile[sock][dags[i]].state == BLANK) {
@@ -267,7 +275,7 @@ void *stageData(void *)
             pthread_mutex_unlock(&profileLock);
             say("Size of NeedStage: %d", needStage.size());
             if (needStage.size() == 0) {
-                continue;
+                break;
             }
             char cmd[XIA_MAX_BUF] = {0};
             char reply[XIA_MAX_BUF] = {0};
@@ -290,7 +298,7 @@ void *stageData(void *)
                 char newDag[256];
                 sscanf(reply, "%*s %s %s %ld", oldDag, newDag, &timeInt);
                 updateStageArg();
-                say("cmd: %s, old:%s  new:%s\n", reply, oldDag, newDag);
+                say("cmd: %s\n", reply);
                 pthread_mutex_lock(&profileLock);
                 SIDToProfile[sock][oldDag].dag = newDag;
                 SIDToProfile[sock][oldDag].state = READY;

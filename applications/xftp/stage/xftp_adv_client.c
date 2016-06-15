@@ -37,6 +37,7 @@ int getFile(int sock)
     // send the file request to the xftp server
     sprintf(cmd, "get %s", fin);
     sendStreamCmd(sock, cmd);
+    int fetchTime = 0;
 
     // receive the CID list from xftp server
     while (1) {
@@ -96,7 +97,7 @@ int getFile(int sock)
         if (stage) {
             memset(cmd, 0, sizeof(cmd));
             sprintf(cmd, "fetch");
-            sprintf(cmd, "%s %s", cmd, CIDs[i].c_str());
+            sprintf(cmd, "%s %s Time: %d", cmd, CIDs[i].c_str(), fetchTime);
             say("CMD is :%s\n", cmd);
             if (send(stageManagerSock, cmd, strlen(cmd), 0) < 0) {
                 die(-1, "send cmd fail! cmd is %s", cmd);
@@ -117,10 +118,7 @@ int getFile(int sock)
         }
         long end_time = now_msec();
 
-        if (stage) {
-            sprintf(cmd, "time %ld", end_time - start_time);
-            Xsend(stageManagerSock, cmd, strlen(cmd), 0);
-        }
+        fetchTime = end_time - start_time;
         logFile << i <<" Chunk. Running time is: " << end_time - start_time << " ms" << endl;
         say("writing %d bytes of chunk %s to disk\n", len, string2char(CIDs[i]));
         fwrite(data, 1, len, fd);
