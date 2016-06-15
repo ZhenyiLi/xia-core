@@ -122,7 +122,7 @@ int delegationHandler(int sock, char *cmd)
         pthread_mutex_unlock(&stageMutex);
     }
     if (send(sock, tmp.c_str(), tmp.size(), 0) < 0) {
-        warn("socket error while sending data, closing connection\n");
+        warn("socket error while sending data, closing connetTime\n");
         return -1;
     }
     say("End of delegationHandler");
@@ -141,7 +141,7 @@ void *clientCmd(void *socketid)
     while (1) {
         memset(cmd, 0, sizeof(cmd));
         if ((n = recv(sock, cmd, sizeof(cmd), 0)) < 0) {
-            warn("socket error while waiting for data, closing connection\n");
+            warn("socket error while waiting for data, closing connetTime\n");
             break;
         }
         else {
@@ -227,11 +227,11 @@ void *stageData(void *)
         say("*********************************In while loop of stageData\n");
         if(!isConnect()){
             long newStamp = now_msec();
-            connection << lastSSID << " disconnect. Last: " << newStamp - timeStamp << "ms." << endl;
+            connetTime << lastSSID << " disconnect. Last: " << newStamp - timeStamp << "ms." << endl;
         }
         string currSSID = getSSID();
         if (lastSSID != currSSID) {
-            connection << currSSID << "Connect." << endl;
+            connetTime << currSSID << "Connect." << endl;
             timeStamp = now_msec();
             say("Thread id: %d Network changed, create another thread to continue!\n");
             lastSSID = currSSID;
@@ -306,7 +306,7 @@ int main()
     lastSSID = getSSID();
     currSSID = lastSSID;
     timeStamp = now_msec();
-    connection << currSSID << "Connect." << endl;
+    connetTime << currSSID << "Connect." << endl;
     int stageSock = registerUnixStreamReceiver(UNIXMANAGERSOCK);
     pthread_t thread_stageData;
 

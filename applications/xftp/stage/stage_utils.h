@@ -106,7 +106,7 @@ long now_msec();
 // Unix epoch time in usec
 long long now_usec();
 
-bool isConnect()
+bool isConnect();
 
 string getSSID();
 
