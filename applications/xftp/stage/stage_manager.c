@@ -233,14 +233,17 @@ void *stageData(void *)
             stageIndex[sock] = -1;
             if (beg == -1)
                 continue;
-            for (int i = beg, j = 0; j <= chunkToStage && i < int(dags.size()); ++i) {
+            for (int i = beg, j = 0; j < chunkToStage && i < int(dags.size()); ++i) {
+                say("Before needStage: i = %d, beg = %d, dag = %s State: %d\n",i, beg, dags[i].c_str(),SIDToProfile[sock][dags[i]].state);
                 if (SIDToProfile[sock][dags[i]].state == BLANK) {
+                    say("needStage: i = %d, beg = %d, dag = %s\n",i, beg, dags[i].c_str());
                     needStage.insert(dags[i]);
                     j++;
                 }
             }
             pthread_mutex_unlock(&stageMutex);
             pthread_mutex_unlock(&profileLock);
+            say("Size of NeedStage: %d", needStage.size());
             if (needStage.size() == 0) {
                 continue;
             }
@@ -255,7 +258,7 @@ void *stageData(void *)
 
             sendStreamCmd(netStageSock, cmd);
             for (int i = 0; i < static_cast<int>(needStage.size()); ++i) {
-                sayHello(netStageSock, "READY TO RECEIVE!");
+                sayHello(netStageSock, "READY TO RECEIVE!\n");
                 if (Xrecv(netStageSock, reply, sizeof(reply), 0) < 0) {
                     Xclose(netStageSock);
                     die(-1, "Unable to communicate with the server\n");

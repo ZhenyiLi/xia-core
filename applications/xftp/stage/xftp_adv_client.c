@@ -105,6 +105,7 @@ int getFile(int sock)
             if ((len = recv(stageManagerSock, cmd, XIA_MAX_BUF, 0)) < 0) {
                 die(-1, "fail to recv from stageManager!");
             }
+            say("Get NewDag: %s\n", cmd);
             url_to_dag(&addr, cmd, len);
         }
         else {

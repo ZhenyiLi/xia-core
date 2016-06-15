@@ -673,9 +673,7 @@ say("In updateManifest()\n");
 	int offset = 0;
 	int count = CIDs.size();
 	int num;
-say("Say something\n");
 	while (offset < count) {
-say("Say something\n");
 		num = MAX_CID_NUM;
 		if (count - offset < MAX_CID_NUM) {
 			num = count - offset;

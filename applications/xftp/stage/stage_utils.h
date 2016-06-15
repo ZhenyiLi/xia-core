@@ -34,7 +34,7 @@
 #define MAX_XID_SIZE 100
 #define RECV_BUF_SIZE 1024
 #define XIA_MAX_BUF 15600
-#define MAX_CID_NUM 20
+#define MAX_CID_NUM 5
 
 #define CHUNKSIZE 1024
 
