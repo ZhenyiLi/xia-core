@@ -4,15 +4,15 @@ LDFLAGS+=$(LIBS) -lpthread -lprotobuf
 all: stage_utils.o ftpServer ftpClient stageManager stageServer xping testXping
 	rm stage_utils.o
 stage_utils.o:
-	$(CC) $(CFLAGS) stage_utils.c -c stage_utils.o	
+	$(CC) $(CFLAGS) -c stage_utils.c
 ftpServer:
-	$(CC) $(CFLAGS) xftp_adv_server.c stage_utils.o -o xftp_adv_server -lprotobuf $(LDFLAGS)
+	$(CC) $(CFLAGS) xftp_adv_server.c stage_utils.o -o xftp_adv_server $(LDFLAGS)
 ftpClient:
-	$(CC) $(CFLAGS) xftp_adv_client.c stage_utils.o -o xftp_adv_client -lprotobuf $(LDFLAGS)
+	$(CC) $(CFLAGS) xftp_adv_client.c stage_utils.o -o xftp_adv_client $(LDFLAGS)
 stageManager:
-	$(CC) $(CFLAGS) stage_manager.c stage_utils.o -o stage_manager -lprotobuf $(LDFLAGS)
+	$(CC) $(CFLAGS) stage_manager.c stage_utils.o -o stage_manager $(LDFLAGS)
 stageServer:
-	$(CC) $(CFLAGS) stage_server.c stage_utils.o -o stage_server -lprotobuf $(LDFLAGS)
+	$(CC) $(CFLAGS) stage_server.c stage_utils.o -o stage_server $(LDFLAGS)
 xping:
 	$(CC) $(CFLAGS) xping.c -o xping $(LDFLAGS)
 testXping:
