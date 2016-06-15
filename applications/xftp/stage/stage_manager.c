@@ -249,9 +249,11 @@ void *stageData(void *)
             pthread_mutex_lock(&profileLock);
             pthread_mutex_lock(&stageMutex);
             int beg = fetchIndex[sock];
-            if (alreadyStage >= chunkToStage)
+            fetchIndex[sock] = -1;
+            say("AlreadyStage: %d chunkToStage: %d\n",alreadyStage, chunkToStage);
+            if (alreadyStage >= chunkToStage || beg == -1)
                 continue;
-            for (int i = beg, j = 0; j < alreadyStage - chunkToStage && i < int(dags.size()); ++i) {
+            for (int i = beg, j = 0; j < chunkToStage - alreadyStage && i < int(dags.size()); ++i) {
                 say("Before needStage: i = %d, beg = %d, dag = %s State: %d\n",i, beg, dags[i].c_str(),SIDToProfile[sock][dags[i]].state);
                 if (SIDToProfile[sock][dags[i]].state == BLANK) {
                     say("needStage: i = %d, beg = %d, dag = %s\n",i, beg, dags[i].c_str());
