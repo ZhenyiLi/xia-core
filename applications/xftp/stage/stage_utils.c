@@ -290,7 +290,7 @@ int hearHello(int sock)
 	char command[XIA_MAXBUF];
 	memset(command, '\0', strlen(command));
 	int n;
-	if ((n = Xrecv(sock, command, RECV_BUF_SIZE, 0))  < 0) {
+	if ((n = Xrecv(sock, command, XIA_MAXBUF, 0))  < 0) {
 		warn("socket error while waiting for data, closing connection\n");
 	}
 	//say("HearHello printf!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1\n\n\n\n\n\n\n\n");
