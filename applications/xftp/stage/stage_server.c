@@ -30,7 +30,8 @@ map<string, vector<sockaddr_x> > SIDToBuf; // chunk buffer to stage
 
 // TODO: non-blocking fasion -- stage manager can send another stage request before get a ready response
 // put the CIDs into the stage buffer, and "ready" msg one by one
-void stageControl(int sock, char *cmd)
+
+void stageControl(int sock, char *cmd, int chunkSock)
 {
     //pthread_mutex_lock(&timeLock);
     //SIDToTime[remoteSID] = now_msec();
@@ -44,69 +45,71 @@ void stageControl(int sock, char *cmd)
 
     vector<string> CIDs = strVector(cmd);
 
-    pthread_mutex_lock(&profileLock);
     for (auto CID : CIDs) {
         SIDToProfile[remoteSID][CID].fetchState = BLANK;
         url_to_dag(&SIDToProfile[remoteSID][CID].oldDag, (char*)CID.c_str(), CID.size());
         SIDToProfile[remoteSID][CID].fetchStartTimestamp = 0;
         SIDToProfile[remoteSID][CID].fetchFinishTimestamp = 0;
     }
-    pthread_mutex_unlock(&profileLock);
 
-    // put the CIDs into the buffer to be staged
-    pthread_mutex_lock(&bufLock);
-    for (unsigned int i = 0; i < CIDs.size(); i++)
-        SIDToBuf[remoteSID].push_back(SIDToProfile[remoteSID][CIDs[i]].oldDag);
-    pthread_mutex_unlock(&bufLock);
-
-    //Let the Stage Thread start to stage
-    pthread_cond_signal(&startStage);
     // send the chunk ready msg one by one
     char url[256];
-    char oldUrl[256];
+    char CID[256];
     for (int i = 0; i < int(CIDs.size()); ++i) {
-        dag_to_url(oldUrl, 256, &SIDToProfile[remoteSID][CIDs[i]].oldDag);
-        while (1) {
-            say("In stage control, getting chunk: %s\n", oldUrl);
-
-            //add the lock and unlock action    --Lwy   1.16
-            if (SIDToProfile[remoteSID][oldUrl].fetchState == READY) {
-                char reply[XIA_MAX_BUF] = {0};
-                dag_to_url(url, 256, &SIDToProfile[remoteSID][oldUrl].newDag);
-
-                sprintf(reply, "ready %s %s %ld", oldUrl, url,
-                        SIDToProfile[remoteSID][oldUrl].fetchStartTimestamp -
-                        SIDToProfile[remoteSID][oldUrl].fetchFinishTimestamp);
-                hearHello(sock);
-                stageServerTime << "OldDag: " << oldUrl << " NewDag: " << url << " StageTime: " << SIDToProfile[remoteSID][oldUrl].fetchStartTimestamp -
-                        SIDToProfile[remoteSID][oldUrl].fetchFinishTimestamp << endl;
-
-                // Send chunk ready message to state manager.
-                sendStreamCmd(sock, reply);
-                say("xsend return ----- xsend return ---- xsend return ----  %s", CIDs[i].c_str());
-                //pthread_mutex_unlock(&profileLock);
-                break;
-            }
-            // Determine the intervals to check the state of current chunk.
-            usleep(SCAN_DELAY_MSEC * 1000); // chenren: check timing issue
+        if (SIDToProfile[SID][CID].fetchStartTimestamp == 0) {
+            SIDToProfile[SID][CID].fetchStartTimestamp = now_msec();
         }
+        if ((ret = XfetchChunk(&xcache, buf, CHUNKSIZE, XCF_BLOCK, &SIDToProfile[remoteSID][CID].oldDag, sizeof(SIDToProfile[remoteSID][CID].oldDag))) < 0) {
+            die(-1,"unable to request chunks\n");
+            //add unlock function   --Lwy   1.16
+            //pthread_mutex_unlock(&bufLock);
+            //pthread_exit(NULL);
+        }
+
+        if (XputChunk(&xcache, (const char* )buf, ret, &SIDToProfile[SID][CID].newDag) < 0) {
+            die(-1,"unable to put chunks\n");
+            //pthread_exit(NULL);
+        }
+        if (SIDToProfile[SID][CID].fetchFinishTimestamp == 0) {
+            SIDToProfile[SID][CID].fetchFinishTimestamp = now_msec();
+        }
+        SIDToProfile[SID][CID].fetchState = READY;
+        //add the lock and unlock action    --Lwy   1.16
+        char reply[XIA_MAX_BUF] = "";
+        dag_to_url(url, 256, &SIDToProfile[remoteSID][CID].newDag);
+
+        sprintf(reply, "ready %s %s %ld", CID, url,
+                SIDToProfile[remoteSID][CID].fetchStartTimestamp -
+                SIDToProfile[remoteSID][CID].fetchFinishTimestamp);
+        hearHello(sock);
+        stageServerTime << "OldDag: " << CID << " NewDag: " << url << " StageTime: " << SIDToProfile[remoteSID][CID].fetchStartTimestamp -
+                        SIDToProfile[remoteSID][CID].fetchFinishTimestamp << endl;
+
+        // Send chunk ready message to state manager.
+        sendStreamCmd(sock, reply);
+        say("xsend return ----- xsend return ---- xsend return ----  %s", CID.c_str());
+        //pthread_mutex_unlock(&profileLock);
+
+        // Determine the intervals to check the state of current chunk.
+        //usleep(SCAN_DELAY_MSEC * 1000); // chenren: check timing issue
     }
 
-    pthread_mutex_lock(&profileLock);
+//pthread_mutex_lock(&profileLock);
     SIDToProfile.erase(remoteSID);
-    pthread_mutex_unlock(&profileLock);
-    pthread_mutex_lock(&bufLock);
-    SIDToBuf.erase(remoteSID);
-    pthread_mutex_unlock(&bufLock);
-    //pthread_mutex_lock(&timeLock);
-    //SIDToTime.erase(remoteSID);
-    //pthread_mutex_unlock(&timeLock);
+//pthread_mutex_unlock(&profileLock);
+//pthread_mutex_lock(&bufLock);
+//SIDToBuf.erase(remoteSID);
+//pthread_mutex_unlock(&bufLock);
+//pthread_mutex_lock(&timeLock);
+//SIDToTime.erase(remoteSID);
+//pthread_mutex_unlock(&timeLock);
 
     return;
 }
 
 // TODO: paralize getting chunks for each SID, i.e. fair scheduling
 // read the CID from the stage buffer, execute staging, and update profile
+/*
 void *stageData(void *)
 {
     int chunkSock;
@@ -171,12 +174,20 @@ void *stageData(void *)
     }
     pthread_exit(NULL);
 }
-
+*/
 void *stageCmd(void *socketid)
 {
+    int chunkSock;
     char cmd[XIA_MAXBUF];
     int sock = *((int*)socketid);
     int n = -1;
+
+    XcacheHandle xcache;
+    XcacheHandleInit(&xcache);
+    // Create socket with server.
+    if ((chunkSock = Xsocket(AF_XIA, XSOCK_CHUNK, 0)) < 0) {
+        die(-1, "unable to create chunk socket\n");
+    }
 
     while (1) {
         say("In stageCmd.\n");
@@ -199,19 +210,20 @@ void *stageCmd(void *socketid)
         say("Successfully receive stage command from stage manager.\n");
         if (strncmp(cmd, "stage", 5) == 0) {
             say("Receive a stage message: %s\n", cmd);
-            stageControl(sock, cmd + 6);
+            stageControl(sock, cmd + 6, chunkSock);
         }
     }
 
     Xclose(sock);
+    Xclose(chunkSock);
     say("Socket closed\n");
     pthread_exit(NULL);
 }
 
 int main()
 {
-    pthread_t thread_stage;
-    pthread_create(&thread_stage, NULL, stageData, NULL); // dequeue, stage and update profile
+    //pthread_t thread_stage;
+    //pthread_create(&thread_stage, NULL, stageData, NULL); // dequeue, stage and update profile
 
     stageServerSock = registerStreamReceiver(getStageServiceName(), myAD, myHID, my4ID);
     say("The current stageServerSock is %d\n", stageServerSock);
