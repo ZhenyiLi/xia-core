@@ -186,14 +186,9 @@ void *stageCmd(void *socketid)
     int sock = *((int*)socketid);
     int n = -1;
 
-    // Create socket with server.
-    if ((chunkSock = Xsocket(AF_XIA, XSOCK_CHUNK, 0)) < 0) {
-        die(-1, "unable to create chunk socket\n");
-    }
-
     while (1) {
         say("In stageCmd.\n");
-        memset(cmd, '\0', strlen(cmd));
+        memset(cmd, '\0', sizeof(cmd));
         // Receive the stage command sent by stage_manager.
         if ((n = Xrecv(sock, cmd, sizeof(cmd), 0))  < 0) {
             warn("socket error while waiting for data, closing connection\n");
@@ -209,7 +204,7 @@ void *stageCmd(void *socketid)
             }
             continue;
         }
-        say("Successfully receive stage command from stage manager.\n");
+        say("Successfully receive stage command from stage manager. CMD: %s\n",cmd);
         if (strncmp(cmd, "stage", 5) == 0) {
             say("Receive a stage message: %s\n", cmd);
             stageControl(sock, cmd + 6);
@@ -227,6 +222,10 @@ int main()
     //pthread_create(&thread_stage, NULL, stageData, NULL); // dequeue, stage and update profile
 
     XcacheHandleInit(&xcache);
+    // Create socket with server.
+    if ((chunkSock = Xsocket(AF_XIA, XSOCK_CHUNK, 0)) < 0) {
+        die(-1, "unable to create chunk socket\n");
+    }
     stageServerSock = registerStreamReceiver(getStageServiceName(), myAD, myHID, my4ID);
     say("The current stageServerSock is %d\n", stageServerSock);
     blockListener((void *)&stageServerSock, stageCmd);
