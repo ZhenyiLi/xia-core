@@ -103,6 +103,7 @@ int getFile(int sock)
                 die(-1, "send cmd fail! cmd is %s", cmd);
             }
             say("After send Fetch!\n");
+            memset(cmd, 0, sizeof(cmd));
             if ((len = recv(stageManagerSock, cmd, XIA_MAX_BUF, 0)) < 0) {
                 die(-1, "fail to recv from stageManager!");
             }
@@ -113,13 +114,14 @@ int getFile(int sock)
             url_to_dag(&addr, (char*)CIDs[i].c_str(), CIDs[i].size());
         }
         long start_time = now_msec();
-        if ((len = XfetchChunk(&h, data, CHUNKSIZE, XCF_BLOCK, &addr, sizeof(addr))) < 0) {
+        if ((len = XfetchChunk(&h, data, CHUNKSIZE, XCF_BLOCK | XCF_SKIPCACHE, &addr, sizeof(addr))) < 0) {
             die(-1, "XcacheGetChunk Failed\n");
         }
         long end_time = now_msec();
-
+        char req[256];
+        dag_to_url(req,256,&addr);
         fetchTime = end_time - start_time;
-        logFile << i <<" Chunk. Running time is: " << end_time - start_time << " ms" << endl;
+        logFile << i <<" Chunk. Running time is: " << end_time - start_time << " ms. req: " << req << endl;
         say("writing %d bytes of chunk %s to disk\n", len, string2char(CIDs[i]));
         fwrite(data, 1, len, fd);
         bytes += len;
@@ -130,7 +132,7 @@ int getFile(int sock)
     }
     fclose(fd);
     long finishTime = now_msec();
-    logFile << "Received file " << fout << " at "<< (1000 * (float)bytes / 1024) / (float)(finishTime - startTime) << " MB/s (Time: " << finishTime - startTime << " msec, Size: " << bytes << "bytes)\n";
+    logFile << "Received file " << fout << " at "<< (1000 * (float)bytes / 1024) / (float)(finishTime - startTime) << " KB/s (Time: " << finishTime - startTime << " msec, Size: " << bytes << "bytes)\n";
     sendStreamCmd(sock, "done");    // chunk fetching ends, send command to server
     for (unsigned int i = 0; i < CIDs.size(); i++) {
         logFile << fout << "\t" << CIDs[i] << "\t" << chunkSize[i] << " B\t" << latency[i] << "\t" << chunkStartTime[i] << "\t" << chunkFinishTime[i] << endl;

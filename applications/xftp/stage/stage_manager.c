@@ -106,6 +106,10 @@ int delegationHandler(int sock, char *cmd)
         //SIDToDAGs[sock].erase();
         while (true) {
             pthread_mutex_lock(&profileLock);
+	    if(SIDToProfile[sock][cmd].state == BLANK){
+	        SIDToProfile[sock][cmd].state = READY;
+                SIDToProfile[sock][cmd].dag = cmd;
+            }
             if (SIDToProfile[sock][cmd].state == READY) {
                 //SIDToProfile[sock][cmd].state = IGNORE;
                 break;
@@ -282,7 +286,7 @@ void *stageData(void *)
 
             sprintf(cmd, "stage");
             for (auto dag : needStage) {
-                say("needStage: %s\n", dag.c_str());
+                //say("needStage: %s\n", dag.c_str());
                 SIDToProfile[sock][dag].stageStartTimestemp = now_msec();
                 sprintf(cmd, "%s %s", cmd, dag.c_str());
             }
@@ -290,6 +294,7 @@ void *stageData(void *)
             sendStreamCmd(netStageSock, cmd);
             for (int i = 0; i < static_cast<int>(needStage.size()); ++i) {
                 sayHello(netStageSock, "READY TO RECEIVE!\n");
+                memset(reply,0,sizeof(reply));
                 if (Xrecv(netStageSock, reply, sizeof(reply), 0) < 0) {
                     Xclose(netStageSock);
                     die(-1, "Unable to communicate with the server\n");

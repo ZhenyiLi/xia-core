@@ -36,7 +36,7 @@
 #define XIA_MAX_BUF 15600
 #define MAX_CID_NUM 5
 
-#define CHUNKSIZE 1024
+#define CHUNKSIZE 1024 * 32
 
 #define REREQUEST 6
 #define NUM_CHUNKS 1 // 12 is the max NUM_CHUNKS to fetch at one time for 1024 K
@@ -49,8 +49,8 @@
 #define PREFETCH_SERVER_NAME "www_s.prefetch_server.aaa.xia"
 #define PREFETCH_MANAGER_NAME "www_s.prefetch_client.aaa.xia"
 #define UNIXMANAGERSOCK "/tmp/stage_manager.sock"
-#define GETSSID_CMD "iwgetid -r"
-
+//#define GETSSID_CMD "iwgetid -r"
+#define GETSSID_CMD "iwconfig wlan0 | grep '\\\"[a-zA-Z\\_0-9.]*\\\"' -o"
 #define PURGE_DELAY_SEC 10
 #define MGT_DELAY_SEC 10
 #define STAGE_WIN_INIT 3
