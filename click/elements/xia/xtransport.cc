@@ -2274,8 +2274,9 @@ void XTRANSPORT::Xsocket(unsigned short _sport, xia::XSocketMsg *xia_socket_msg)
 		sk = new XStream(this, _sport);
 		break;
 	}
+	case SOCK_RAW:
 	case SOCK_DGRAM: {
-		sk = new XDatagram(this, _sport);
+		sk = new XDatagram(this, _sport, sock_type);
 		break;
 	}
 //	case SOCK_CHUNK: {
@@ -3661,7 +3662,7 @@ void XTRANSPORT::Xrecv(unsigned short _sport, xia::XSocketMsg *xia_socket_msg)
 
 		if (xia_socket_msg->x_recv().bytes_returned() > 0) {
 			// Return response to API
-			INFO("Read %d bytes", xia_socket_msg->x_recv().bytes_returned());
+			//INFO("Read %d bytes", xia_socket_msg->x_recv().bytes_returned());
 			ReturnResult(_sport, xia_socket_msg, xia_socket_msg->x_recv().bytes_returned());
 
 		} else if (sk->state == CLOSE_WAIT) {
