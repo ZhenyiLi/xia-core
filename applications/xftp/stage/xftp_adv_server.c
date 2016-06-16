@@ -25,11 +25,11 @@ void *recvCmd (void *socketid)
 		memset(cmd, '\0', strlen(cmd));
 		memset(reply, '\0', strlen(reply));
 		
-		if ((n = Xrecv(sock, cmd, RECV_BUF_SIZE, 0)) < 0) {
+		if ((n = Xrecv(sock, cmd, XIA_MAX_BUF, 0)) < 0) {
 			warn("socket error while waiting for data, closing connection\n");
 			break;
 		}
-
+say("Receive cmd: %s\n", cmd);
 		if (strncmp(cmd, "get", 3) == 0) {
 			fname = &cmd[4];
 			say("Client requested file %s\n", fname);

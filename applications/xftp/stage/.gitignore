@@ -2,3 +2,10 @@ xftp_adv_client
 xftp_adv_server
 stage_manager
 stage_server
+*.log
+testXping
+xping
+my*
+*.png
+log/
+*.lz

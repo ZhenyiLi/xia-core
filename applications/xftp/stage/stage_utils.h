@@ -36,7 +36,7 @@
 #define XIA_MAX_BUF 15600
 #define MAX_CID_NUM 5
 
-#define CHUNKSIZE 1024
+#define CHUNKSIZE 1024 * 32
 
 #define REREQUEST 6
 #define NUM_CHUNKS 1 // 12 is the max NUM_CHUNKS to fetch at one time for 1024 K
@@ -49,8 +49,8 @@
 #define PREFETCH_SERVER_NAME "www_s.prefetch_server.aaa.xia"
 #define PREFETCH_MANAGER_NAME "www_s.prefetch_client.aaa.xia"
 #define UNIXMANAGERSOCK "/tmp/stage_manager.sock"
-#define GETSSID_CMD "iwgetid -r"
-
+//#define GETSSID_CMD "iwgetid -r"
+#define GETSSID_CMD "iwconfig wlan0 | grep '\\\"[a-zA-Z\\_0-9.]*\\\"' -o"
 #define PURGE_DELAY_SEC 10
 #define MGT_DELAY_SEC 10
 #define STAGE_WIN_INIT 3
@@ -78,8 +78,6 @@ void warn(const char *fmt, ...);
 // write the message to stdout, and exit the app
 void die(int ecode, const char *fmt, ...);
 
-char *randomString(char *buf, int size);
-
 // format: cid1 cid2, ... cidn
 vector<string> strVector(char *strs);
 
@@ -98,10 +96,17 @@ long string2long(string str);
 // result the string result of system command
 string execSystem(string cmd);
 
+int getRTT(const char * host);
+
 bool file_exists(const char *filename);
 
 // Unix epoch time in msec
 long now_msec();
+
+// Unix epoch time in usec
+long long now_usec();
+
+bool isConnect();
 
 string getSSID();
 

@@ -30,27 +30,6 @@ void die(int ecode, const char *fmt, ...)
 	exit(ecode);
 }
 
-// create a semi-random alphanumeric string of the specified size
-char *randomString(char *buf, int size)
-{
-	int i;
-	static const char *filler = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	static int refresh = 1;
-	int samples = strlen(filler);
-
-	if (!(--refresh)) {
-		// refresh rand every now and then so it doesn't degenerate too much
-		// use a prime number to keep it interesting
-		srand(time(NULL));
-		refresh = 997;
-	}
-	for (i = 0; i < size - 1; i ++) {
-		buf[i] = filler[rand() % samples];
-	}
-	buf[size - 1] = 0;
-
-	return buf;
-}
 //split the str     --Lwy   1.16
 vector<string> strVector(char *strs)
 {
@@ -124,11 +103,28 @@ bool file_exists(const char * filename)
 	return false;
 }
 
+int getRTT(const char * host){
+	char cmd[128] = "";
+	sprintf(cmd,"./xping -qi 0.1 %s 56 5 | grep \"/[0-9]*/\" -o ", host);
+	string ans = execSystem(cmd);
+	int result;
+	sscanf(ans.c_str(),"/%d/",&result);
+	return result;
+}
+
 long now_msec()
 {
 	struct timeval tv;
 	if (gettimeofday(&tv, NULL) == 0)
 		return ((tv.tv_sec * 1000000L + tv.tv_usec) / 1000);
+	else
+		return -1;
+}
+long long now_usec()
+{
+	struct timeval tv;
+	if (gettimeofday(&tv, NULL) == 0)
+		return (tv.tv_sec * 1000000L + tv.tv_usec);
 	else
 		return -1;
 }
@@ -149,7 +145,11 @@ string getSSID()
 	}
 	return ssid;
 }
-
+bool isConnect()
+{
+	string ssid = execSystem(GETSSID_CMD);
+	return !ssid.empty();
+}
 string getAD()
 {
 	int sock;
@@ -294,7 +294,7 @@ int hearHello(int sock)
 	char command[XIA_MAXBUF];
 	memset(command, '\0', strlen(command));
 	int n;
-	if ((n = Xrecv(sock, command, RECV_BUF_SIZE, 0))  < 0) {
+	if ((n = Xrecv(sock, command, XIA_MAXBUF, 0))  < 0) {
 		warn("socket error while waiting for data, closing connection\n");
 	}
 	//say("HearHello printf!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1\n\n\n\n\n\n\n\n");
@@ -700,7 +700,7 @@ say("In updateManifest()\n");
 	}
 	say("Waiting for manager finish profile.\n");
 	say("In updateManifest, register to manager done.");
-	usleep(SCAN_DELAY_MSEC*000);
+	usleep(SCAN_DELAY_MSEC*1000);
 
 	return 0;
 }
